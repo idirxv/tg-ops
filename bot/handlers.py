@@ -1,14 +1,16 @@
-from telegram.ext import CommandHandler, Dispatcher
-from bot.services import fail2ban_service
+"""Group all Telegram handlers (commands, callbacks, etc.)."""
 
-def register_handlers():
-    from app import dispatcher
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("startfail2ban", fail2ban_service.start))
-    dispatcher.add_handler(CommandHandler("stopfail2ban", fail2ban_service.stop))
-    dispatcher.add_handler(CommandHandler("statusfail2ban", fail2ban_service.status))
+from __future__ import annotations
 
-def start(update, _):
-    update.message.reply_text(
-        "Commandes disponibles : /startfail2ban, /stopfail2ban, /statusfail2ban"
-    )
+from telegram import Update
+from telegram.ext import ContextTypes, CommandHandler, Application
+
+
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reply with 'pong' – perfect for testing the bot's health."""
+    await update.message.reply_text("pong")
+
+
+def register(application: Application) -> None:
+    """Register all handlers on the given application instance."""
+    application.add_handler(CommandHandler("ping", ping))
