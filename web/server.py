@@ -31,3 +31,13 @@ def create_server(application: Application, *, loop: asyncio.AbstractEventLoop) 
         return Response("OK", status=200)
 
     return app
+
+
+def serve(app: Flask, *, host: str, port: int) -> None:
+    """Run the Flask application.
+
+    Extracted from ``main`` so that the entry-point can delegate the blocking
+    call via ``asyncio.to_thread`` without importing the ``threading`` module.
+    """
+    app.run(host=host, port=port, threaded=True, use_reloader=False)
+
