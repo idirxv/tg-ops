@@ -1,4 +1,4 @@
-"""Run the Telegram bot and Flask webhook server concurrently."""
+"""Run the Telegram bot and HTTP webhook server concurrently."""
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +10,7 @@ from typing import Final
 
 from bot.app_builder import lifespan as bot_lifespan
 from config import Config
-from web.server import create_server, serve
+from web.server import create_server, WebServer
 
 log = logging.getLogger(__name__)
 
@@ -22,11 +22,15 @@ async def run(cfg: Config) -> None:
     loop: Final = asyncio.get_running_loop()
 
     async with bot_lifespan(cfg) as application:
-        flask_app = create_server(application, loop=loop)
-
-        flask_task = asyncio.create_task(
-            asyncio.to_thread(serve, flask_app, host="0.0.0.0", port=cfg.port)
+        server: WebServer = create_server(
+            application,
+            loop=loop,
+            host="0.0.0.0",
+            port=cfg.port,
+            secret_token=getattr(cfg, "secret_token", None),
         )
+        # Run the HTTP server in its own daemon thread
+        server.start()
 
         stop_event = asyncio.Event()
 
@@ -41,10 +45,5 @@ async def run(cfg: Config) -> None:
         log.info("PiCommander is running on port %s", cfg.port)
         await stop_event.wait()
 
-        # If we reach this point, a shutdown signal was received – let the
-        # server finish its current requests (best-effort) and cancel
-        # background task if it's still running.
-        if not flask_task.done():
-            flask_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await flask_task
+        # If we reach this point, a shutdown signal was received – stop HTTP server.
+        server.stop()

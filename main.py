@@ -12,8 +12,8 @@ from logging_setup import setup_logging
 
 def main() -> None:
     """Main entry point."""
-    setup_logging()
     cfg = Config()
+    setup_logging(cfg.log_level)
 
     parser = argparse.ArgumentParser("PiCommander")
     parser.add_argument("--set-webhook", action="store_true")

@@ -13,7 +13,11 @@ async def manage(set_: bool, *, cfg: Config) -> None:
     """Register or delete the webhook."""
     async with Bot(cfg.bot_token) as bot:
         if set_:
-            await bot.set_webhook(f"{cfg.webhook_url}/webhook")
+            await bot.set_webhook(
+                f"{cfg.webhook_url}/webhook",
+                drop_pending_updates=True,
+                secret_token=getattr(cfg, "secret_token", None),
+            )
             log.info("Webhook registered → %s/webhook", cfg.webhook_url)
         else:
             await bot.delete_webhook()
