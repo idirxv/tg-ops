@@ -11,9 +11,11 @@ license = "MIT"
 readme = "README.md"
 packages = [{ include = "src"}]
 
+[project.urls]
+Repository = "https://github.com/idirxv/tg-ops"
 
 [tool.poetry.dependencies]
-python = ">=3.12"
+python = ">=3.11"
 python-telegram-bot = {version = ">=22.3,<23.0", extras = ["webhooks"]}
 requests = ">=2.32.5,<3.0.0"
 docker = "^7.1.0"
