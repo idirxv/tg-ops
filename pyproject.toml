@@ -2,27 +2,50 @@
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry]
+[project]
 name = "tg-ops"
 version = "0.1.0"
 description = "A secure Telegram bot for remote system operations and monitoring on Linux hosts"
-authors = ["Idir Oura <idir.oura@protonmail.com>"]
-license = "MIT"
 readme = "README.md"
-packages = [{ include = "src"}]
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Idir Oura", email = "idir.oura@protonmail.com" }
+]
 
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+]
+keywords = ["telegram", "bot", "monitoring", "linux", "devops", "remote-control"]
 
-[tool.poetry.dependencies]
-python = ">=3.12"
-python-telegram-bot = {version = ">=22.3,<23.0", extras = ["webhooks"]}
-requests = ">=2.32.5,<3.0.0"
-docker = "^7.1.0"
-psutil = ">=7.2.1"
+dependencies = [
+    "python-telegram-bot[webhooks]>=22.3,<23.0",
+    "requests>=2.32.5,<3.0.0",
+    "docker>=7.1.0,<8.0.0",
+    "psutil>=7.2.1"
+]
 
-[tool.poetry.scripts]
-tg-ops = "src.main:main"
+[project.urls]
+Homepage = "https://github.com/idirxv/tg-ops"
+Repository = "https://github.com/idirxv/tg-ops"
 
-# Dev dependencies
+[project.scripts]
+tg-ops = "tg_ops.main:main"
+
+[tool.poetry]
+packages = [{ include = "tg_ops" }]
+include = ["LICENSE"]
+
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.10"
 mypy = "^1.19.1"
@@ -35,5 +58,5 @@ check_untyped_defs = true
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I"] 
+select = ["E", "F", "I"]
 ignore = []
