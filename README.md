@@ -1,5 +1,7 @@
  # tg-ops
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/2b973559f6b44389b2f3bd8dc82e26d1)](https://app.codacy.com/gh/idirxv/tg-ops?utm_source=github.com&utm_medium=referral&utm_content=idirxv/tg-ops&utm_campaign=Badge_Grade)
+
 Secure-ish Telegram bot for remote system operations and monitoring on Linux hosts.
 
 This project runs a small HTTP server (webhook endpoint) and uses `python-telegram-bot` in webhook mode.
