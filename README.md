@@ -1,5 +1,7 @@
  # tg-ops
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/09a0312da9ea4ff2a2e9b48a8592a517)](https://app.codacy.com/gh/idirxv/tg-ops/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+
 Remote system operations and monitoring on Linux hosts via Telegram.
 
 tg-ops is a lightweight bot that runs a small HTTP webhook server to let you monitor health, check status, and execute commands on your Linux servers directly from a Telegram chat.
