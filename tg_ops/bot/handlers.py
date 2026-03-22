@@ -36,18 +36,22 @@ def restricted(func):
         admin_id = self.cfg.admin_id
         if admin_id is None:
             logging.warning("No admin_id configured — all access blocked for safety")
-            if update.message:
-                await update.message.reply_text("Bot is not configured (no admin_id set).")
-            elif update.callback_query:
+            if update.callback_query:
                 await update.callback_query.answer("Bot is not configured.", show_alert=True)
+            elif update.effective_message:
+                await update.effective_message.reply_text(
+                    "Bot is not configured (no admin_id set)."
+                )
             return
         user_id = update.effective_user.id
         if user_id != admin_id:
             logging.warning(f"Access denied for user {user_id} on {func.__name__}")
-            if update.message:
-                await update.message.reply_text("Access denied. You are not the administrator.")
-            elif update.callback_query:
+            if update.callback_query:
                 await update.callback_query.answer("Access denied.", show_alert=True)
+            elif update.effective_message:
+                await update.effective_message.reply_text(
+                    "Access denied. You are not the administrator."
+                )
             return
         return await func(self, update, context, *args, **kwargs)
 
@@ -67,74 +71,80 @@ class BotHandlers:
 
     async def ping(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /ping command."""
-        if not update.message:
+        if not update.effective_message:
             return
-        await update.message.reply_text("Pong")
+        await update.effective_message.reply_text("Pong")
 
     @restricted
     async def uptime(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message:
+        if not update.effective_message:
             return
         code, out, err = await self.shell_service.execute("uptime")
         text = f"```\n{out}\n```" if code == 0 else f"Error: {err}"
-        await update.message.reply_text(text, parse_mode="Markdown")
+        await update.effective_message.reply_text(text, parse_mode="Markdown")
 
     @restricted
     async def reboot(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Execute the 'reboot' command."""
-        if not update.message:
+        if not update.effective_message:
             return
-        await update.message.reply_text("Reboot not implemented yet.", parse_mode="Markdown")
+        await update.effective_message.reply_text(
+            "Reboot not implemented yet.", parse_mode="Markdown"
+        )
 
     @restricted
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not update.message:
+        if not update.effective_message:
             return
-        await update.message.reply_chat_action("typing")
+        await update.effective_message.reply_chat_action("typing")
         snapshot = await self.system_service.get_system_snapshot()
         msg = TextRenderer.system_status(snapshot)
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await update.effective_message.reply_text(msg, parse_mode="Markdown")
 
     # --- Shell Execution Flow ---
 
     @restricted
     async def exec_entry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Entry point for /exec."""
-        if not update.message:
+        if not update.effective_message:
             return ConversationHandler.END
 
         # CASE 1 : Command is provided as an argument
         if context.args:
             command = " ".join(context.args)
-            await update.message.reply_text(f"Executing : `{command}`...", parse_mode="Markdown")
+            await update.effective_message.reply_text(
+                f"Executing : `{command}`...", parse_mode="Markdown"
+            )
             code, out, err = await self.shell_service.execute(command)
             text = f"```\n{out}\n```" if code == 0 else f"Error: {err}"
-            await update.message.reply_text(text, parse_mode="Markdown")
+            await update.effective_message.reply_text(text, parse_mode="Markdown")
             return ConversationHandler.END
 
         # CASE 2 : No arguments, ask the user for a command
-        await update.message.reply_text("Enter a shell command (/cancel to abort):")
+        await update.effective_message.reply_text("Enter a shell command (/cancel to abort):")
         return WAITING_SHELL_CMD
 
     async def exec_process(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """This function is called in WAITING_SHELL_CMD state and receives text."""
-        if not update.message or not update.message.text:
+        if not update.effective_message or not update.effective_message.text:
             return ConversationHandler.END
 
-        command = update.message.text
+        command = update.effective_message.text
 
-        await update.message.reply_text(f"Executing : `{command}`...", parse_mode="Markdown")
+        await update.effective_message.reply_text(
+            f"Executing : `{command}`...", parse_mode="Markdown"
+        )
         code, out, err = await self.shell_service.execute(command)
         text = f"```\n{out}\n```" if code == 0 else f"Error: {err}"
-        await update.message.reply_text(text, parse_mode="Markdown")
+        await update.effective_message.reply_text(text, parse_mode="Markdown")
 
         return ConversationHandler.END
 
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Cancel the current conversation."""
-        if not update.message:
+        if not update.effective_message:
             return ConversationHandler.END
-        await update.message.reply_text("Operation cancelled.")
+        await update.effective_message.reply_text("Operation cancelled.")
         return ConversationHandler.END
 
     # --- Docker Management ---
@@ -142,11 +152,11 @@ class BotHandlers:
     @restricted
     async def docker(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Entry point /docker"""
-        if not update.message:
+        if not update.effective_message:
             return
         active_containers = await self.docker_manager.get_active_containers()
         reply_markup = MenuBuilder.main_docker_menu(active_containers, self.cfg)
-        await update.message.reply_text(
+        await update.effective_message.reply_text(
             text=TextRenderer.docker_menu_header(), reply_markup=reply_markup, parse_mode="Markdown"
         )
 
