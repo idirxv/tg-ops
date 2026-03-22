@@ -1,11 +1,10 @@
 """Configuration management for the application."""
 
 import logging
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List
-
-import tomllib
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,9 @@ log_level = "{DEFAULT_LOG_LEVEL}"
 
 # Secret Token (Used to validate incoming requests)
 secret_token = ""
+
+# Telegram User ID of the administrator (get it from @userinfobot)
+# admin_id = 123456789
 
 # --- Monitoring Configuration ---
 
@@ -67,6 +69,7 @@ class Config:
     port: int = DEFAULT_PORT
     log_level: str = DEFAULT_LOG_LEVEL
     secret_token: str | None = None
+    admin_id: int | None = None
 
     # Defaults are now empty lists/dicts, not hardcoded values
     monitored_services: List[str] = field(default_factory=list)
@@ -121,6 +124,14 @@ class Config:
                 raise ConfigError(f"Key '{key}' must be a string")
             return val or None  # Return None if string is empty
 
+        def get_optional_int(key: str) -> int | None:
+            val = data.get(key)
+            if val is None:
+                return None
+            if not isinstance(val, int):
+                raise ConfigError(f"Key '{key}' must be an integer")
+            return val
+
         try:
             return cls(
                 bot_token=str(data["bot_token"]),
@@ -128,6 +139,7 @@ class Config:
                 port=int(data.get("port", DEFAULT_PORT)),
                 log_level=str(data.get("log_level", DEFAULT_LOG_LEVEL)),
                 secret_token=get_optional_str("secret_token"),
+                admin_id=get_optional_int("admin_id"),
                 monitored_services=get_list_str("monitored_services"),
                 monitored_disks=get_list_str("monitored_disks"),
                 monitored_containers=get_dict_str_str("monitored_containers"),

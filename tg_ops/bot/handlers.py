@@ -25,21 +25,29 @@ logger = logging.getLogger(__name__)
 
 WAITING_SHELL_CMD = 1
 
-ADMIN_ID = 123456789
-
 
 def restricted(func):
-    """Decorator to restrict access to admin."""
+    """Decorator to restrict access to the configured admin user."""
 
     @wraps(func)
     async def wrapped(self, update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         if not update.effective_user:
             return
+        admin_id = self.cfg.admin_id
+        if admin_id is None:
+            logging.warning("No admin_id configured — all access blocked for safety")
+            if update.message:
+                await update.message.reply_text("Bot is not configured (no admin_id set).")
+            elif update.callback_query:
+                await update.callback_query.answer("Bot is not configured.", show_alert=True)
+            return
         user_id = update.effective_user.id
-        if user_id != ADMIN_ID:
+        if user_id != admin_id:
+            logging.warning(f"Access denied for user {user_id} on {func.__name__}")
             if update.message:
                 await update.message.reply_text("Access denied. You are not the administrator.")
-            logging.warning(f"Access denied by {user_id} on {func.__name__}")
+            elif update.callback_query:
+                await update.callback_query.answer("Access denied.", show_alert=True)
             return
         return await func(self, update, context, *args, **kwargs)
 
@@ -63,7 +71,7 @@ class BotHandlers:
             return
         await update.message.reply_text("Pong")
 
-    # @restricted
+    @restricted
     async def uptime(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message:
             return
@@ -71,14 +79,14 @@ class BotHandlers:
         text = f"```\n{out}\n```" if code == 0 else f"Error: {err}"
         await update.message.reply_text(text, parse_mode="Markdown")
 
-    # @restricted
+    @restricted
     async def reboot(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Execute the 'reboot' command."""
         if not update.message:
             return
         await update.message.reply_text("Reboot not implemented yet.", parse_mode="Markdown")
 
-    # @restricted
+    @restricted
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message:
             return
@@ -89,7 +97,7 @@ class BotHandlers:
 
     # --- Shell Execution Flow ---
 
-    # @restricted
+    @restricted
     async def exec_entry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Entry point for /exec."""
         if not update.message:
@@ -131,6 +139,7 @@ class BotHandlers:
 
     # --- Docker Management ---
 
+    @restricted
     async def docker(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Entry point /docker"""
         if not update.message:
@@ -141,6 +150,7 @@ class BotHandlers:
             text=TextRenderer.docker_menu_header(), reply_markup=reply_markup, parse_mode="Markdown"
         )
 
+    @restricted
     async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle inline button clicks."""
         query = update.callback_query

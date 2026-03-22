@@ -12,10 +12,12 @@ tg-ops is a lightweight bot that runs a small HTTP webhook server to let you mon
 
 - `/ping` Check bot responsiveness.
 - `/uptime` Returns the server's uptime.
-- `/status` "detailed dashboard: CPU/RAM usage, monitored disks space, and systemd service status."
-- `/exec` "Shell Execution: Run arbitrary commands (e.g., /exec ls -la)."
-- `/docker` Container Management via Interactive menu.
-- `/reboot` Coming Soon.
+- `/status` Detailed dashboard: CPU/RAM usage, monitored disks space, and systemd service status.
+- `/exec` Shell execution: run arbitrary commands (e.g., `/exec ls -la`).
+- `/docker` Container management via interactive menu.
+- `/reboot` Coming soon.
+
+All commands except `/ping` are restricted to the configured administrator. Unauthorized users receive an "Access denied" reply.
 
 ## Requirements
 
@@ -75,6 +77,10 @@ port = 5000
 
 # Optional, recommended: Telegram webhook secret token
 secret_token = "super-secret-random-string"
+
+# Your Telegram user ID — only this user can run sensitive commands.
+# Get your ID from @userinfobot on Telegram.
+admin_id = 123456789
 
 # Optional
 log_level = "INFO"
