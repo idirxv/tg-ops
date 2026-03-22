@@ -133,3 +133,9 @@ Notes:
 
 - `webhook set` registers `<webhook_url>/webhook`.
 - If you configured a `secret_token` in your TOML file, webhook set will automatically register it with Telegram, ensuring the server rejects any requests without the correct header.
+
+## Tests
+
+```bash
+poetry run pytest
+```
