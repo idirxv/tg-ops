@@ -3,6 +3,7 @@
 import logging
 import tomllib
 from dataclasses import dataclass, field
+from importlib.resources import files
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,47 +12,6 @@ logger = logging.getLogger(__name__)
 # --- Defaults ---
 DEFAULT_PORT = 5000
 DEFAULT_LOG_LEVEL = "INFO"
-
-# Template with empty fields and usage examples
-CONFIG_TEMPLATE = f"""# tg-ops configuration file
-
-# --- Required Settings ---
-
-# Telegram Bot Token (Get it from @BotFather)
-bot_token = ""
-
-# Webhook URL (Public URL where Telegram sends updates)
-webhook_url = ""
-
-# Server Port
-port = {DEFAULT_PORT}
-
-# --- Optional Settings ---
-
-# Log Level (INFO, DEBUG, ERROR)
-log_level = "{DEFAULT_LOG_LEVEL}"
-
-# Secret Token (Used to validate incoming requests)
-secret_token = ""
-
-# Telegram User ID of the administrator (get it from @userinfobot)
-# admin_id = 123456789
-
-# --- Monitoring Configuration ---
-
-# List of systemd services to monitor
-# Example: monitored_services = ["service1", "service2", "service3"]
-monitored_services = []
-
-# List of disk mount points to monitor
-# Example: monitored_disks = ["/", "/data"]
-monitored_disks = []
-
-# Dictionary of Docker containers to monitor
-# Format: container_name = "/path/to/docker-compose.yml"
-[monitored_containers]
-
-"""
 
 
 class ConfigError(Exception):
@@ -152,8 +112,9 @@ class Config:
     def _create_sample(path: Path) -> None:
         """Create a sample configuration file with empty fields."""
         try:
+            template = files("tg_ops.templates").joinpath("config.toml").read_text(encoding="utf-8")
             with path.open("w", encoding="utf-8") as f:
-                f.write(CONFIG_TEMPLATE)
+                f.write(template)
             # Set restrictive permissions (owner read/write only)
             try:
                 path.chmod(0o600)
