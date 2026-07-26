@@ -1,0 +1,36 @@
+services:
+  tg-ops-bot:
+    image: ghcr.io/idirxv/tg-ops:latest
+    container_name: tg-ops-bot
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      DOCKHAND_URL: ${DOCKHAND_URL}
+      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN}
+      ALLOWED_CHAT_IDS: ${ALLOWED_CHAT_IDS}
+      ALLOWED_STACKS: ${ALLOWED_STACKS}
+      DOCKHAND_ENV: ${DOCKHAND_ENV:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BOT_MODE: ${BOT_MODE:-polling}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      WEBHOOK_PORT: ${WEBHOOK_PORT:-5555}
+    # Loopback-only: reachable by host-network cloudflared, not LAN/internet.
+    ports:
+      - "127.0.0.1:5555:5555"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.5
+    # If Dockhand is reachable only on a named Docker network, attach it:
+    networks:
+      - dockhand
+
+networks:
+  dockhand:
+    external: true
