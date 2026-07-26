@@ -1,0 +1,35 @@
+[project]
+name = "tg-ops-bot"
+version = "0.1.0"
+description = "Telegram bot for controlling Dockhand stacks"
+requires-python = ">=3.12"
+dependencies = [
+    "python-telegram-bot[webhooks]==22.8",
+    "requests==2.34.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "responses==0.26.2",
+    "ruff==0.15.4",
+    "mypy==1.20.0",
+    "types-requests==2.33.0.20260712",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F pyflakes+pycodestyle, I import order, UP pyupgrade,
+# B bugbear, SIM simplifications, RUF ruff-specific.
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["bot"]
