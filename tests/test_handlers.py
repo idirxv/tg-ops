@@ -94,3 +94,15 @@ async def test_dockhand_error_reported_to_user(config):
     await on_callback(update, _ctx(config, client))
     text = q.edit_message_text.await_args.args[0]
     assert "⚠" in text
+
+
+async def test_action_is_audit_logged(config, caplog):
+    client = MagicMock()
+    client.list_stacks.return_value = [{"name": "media", "status": "running"}]
+    update, q = _update("restart|media")
+    q.from_user.id = 42
+    q.from_user.username = "alice"
+    with caplog.at_level("INFO", logger="bot.handlers"):
+        await on_callback(update, _ctx(config, client))
+    assert "restart on stack 'media' requested by user_id=42 (@alice)" in caplog.text
+    assert "restart on stack 'media' succeeded" in caplog.text

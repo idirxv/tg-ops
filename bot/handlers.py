@@ -116,12 +116,28 @@ async def _run_action(
     name: str,
 ) -> None:
     verb, wording = _ACTIONS[action]
+    user = query.from_user
+    chat_id = query.message.chat.id if query.message else "?"
+    # Audit trail: who changed what, and whether it worked.
+    log.info(
+        "Action %s on stack %r requested by user_id=%s (@%s) in chat_id=%s",
+        verb,
+        name,
+        user.id,
+        user.username,
+        chat_id,
+    )
     await _safe_edit(
         query,
         f"⏳ {wording} <b>{html.escape(name)}</b>…",
         None,  # no buttons while the action runs: prevents double-taps
     )
-    await asyncio.to_thread(_client(context).stack_action, name, verb)
+    try:
+        await asyncio.to_thread(_client(context).stack_action, name, verb)
+    except DockhandError as exc:
+        log.warning("Action %s on stack %r failed: %s", verb, name, exc)
+        raise
+    log.info("Action %s on stack %r succeeded", verb, name)
     await _show_detail(query, context, name)
 
 

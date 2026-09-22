@@ -23,6 +23,8 @@ _REQUIRED = (
     "DOCKHAND_ENV",
 )
 
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
 # Telegram's constraint on setWebhook secret_token
 _SECRET_RE = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 
@@ -74,12 +76,12 @@ class Config:
 
         return cls(
             telegram_bot_token=env["TELEGRAM_BOT_TOKEN"].strip(),
-            dockhand_url=env["DOCKHAND_URL"].strip().rstrip("/"),
+            dockhand_url=_parse_dockhand_url(env["DOCKHAND_URL"]),
             dockhand_api_token=env["DOCKHAND_API_TOKEN"].strip(),
             allowed_chat_ids=_parse_chat_ids(env["ALLOWED_CHAT_IDS"]),
             allowed_stacks=_parse_stacks(env["ALLOWED_STACKS"]),
             dockhand_env=_parse_dockhand_env(env["DOCKHAND_ENV"]),
-            log_level=env.get("LOG_LEVEL", "").strip().upper() or "INFO",
+            log_level=_parse_log_level(env.get("LOG_LEVEL", "")),
             webhook=_parse_webhook(env),
         )
 
@@ -105,6 +107,26 @@ def _parse_stacks(raw: str) -> tuple[str, ...]:
                 f"stack name too long (max {_MAX_STACK_NAME_BYTES} bytes): {name!r}"
             )
     return stacks
+
+
+def _parse_dockhand_url(raw: str) -> str:
+    url = raw.strip().rstrip("/")
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ConfigError(
+            "DOCKHAND_URL must be an http(s) URL like http://dockhand:3000, "
+            f"got {url!r}"
+        )
+    if parts.username or parts.password:
+        raise ConfigError("DOCKHAND_URL must not embed credentials")
+    return url
+
+
+def _parse_log_level(raw: str) -> str:
+    level = raw.strip().upper() or "INFO"
+    if level not in _LOG_LEVELS:
+        raise ConfigError(f"LOG_LEVEL must be one of {_LOG_LEVELS}, got {level!r}")
+    return level
 
 
 def _parse_dockhand_env(raw: str) -> str:

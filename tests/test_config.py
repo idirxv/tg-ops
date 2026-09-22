@@ -114,3 +114,20 @@ def test_webhook_port_parsed(webhook_env):
 def test_webhook_port_rejected(webhook_env, port):
     with pytest.raises(ConfigError, match="WEBHOOK_PORT"):
         Config.from_env(webhook_env | {"WEBHOOK_PORT": port})
+
+
+@pytest.mark.parametrize("url", ["dockhand:3000", "ftp://dockhand", "http://"])
+def test_invalid_dockhand_url_rejected(base_env, url):
+    with pytest.raises(ConfigError, match="DOCKHAND_URL"):
+        Config.from_env(base_env | {"DOCKHAND_URL": url})
+
+
+def test_dockhand_url_with_credentials_rejected(base_env):
+    with pytest.raises(ConfigError, match="credentials"):
+        Config.from_env(base_env | {"DOCKHAND_URL": "http://u:p@dockhand:3000"})
+
+
+def test_invalid_log_level_rejected(base_env):
+    """logging.setLevel would otherwise crash with a bare traceback."""
+    with pytest.raises(ConfigError, match="LOG_LEVEL"):
+        Config.from_env(base_env | {"LOG_LEVEL": "verbose"})
