@@ -130,10 +130,18 @@ webhook automatically when polling starts.
 - **Stack allowlist**: bot can only see and act on `ALLOWED_STACKS`.
   Check runs server-side on every button press — inline button data is
   client-forgeable, never trusted.
-- **No Docker socket**: bot only talks to Dockhand API; compromise
-  of bot doesn't grant host-level Docker access.
+- **No Docker socket**: bot only talks to Dockhand API. Note that the
+  Dockhand API token is still a powerful credential: whoever holds it can
+  do anything that token can do in Dockhand (deploy stacks, mount volumes…),
+  so treat it as host-level. Use the most restricted token Dockhand offers.
+- **Audit log**: every start/stop/restart is logged at INFO with the
+  Telegram user id, username, chat id and outcome.
 - **Container hardening**: non-root user, read-only filesystem, `cap_drop:
-  ALL`, `no-new-privileges`, no published ports, memory/CPU limits.
+  ALL`, `no-new-privileges`, `noexec` tmpfs, PID/memory/CPU limits; the only
+  published port is `127.0.0.1:5555` (webhook mode).
+- **Group chats**: authorization is per *chat*. If an allowlisted chat is a
+  group, every member of that group can control the allowlisted stacks.
+  Prefer a private chat with the bot.
 - **Never add bot's own stack to `ALLOWED_STACKS`** — stopping it would
   leave nothing to restart it.
 - Use **dedicated Dockhand API token**, revoke if bot's
