@@ -131,3 +131,10 @@ def test_invalid_log_level_rejected(base_env):
     """logging.setLevel would otherwise crash with a bare traceback."""
     with pytest.raises(ConfigError, match="LOG_LEVEL"):
         Config.from_env(base_env | {"LOG_LEVEL": "verbose"})
+
+
+@pytest.mark.parametrize("var", ["ALLOWED_CHAT_IDS", "ALLOWED_STACKS"])
+def test_allowlist_of_only_separators_rejected(base_env, var):
+    """" , " passes the presence check but would silently allow nothing."""
+    with pytest.raises(ConfigError, match=var):
+        Config.from_env(base_env | {var: " , "})

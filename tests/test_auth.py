@@ -8,9 +8,10 @@ from bot.auth import is_authorized, make_auth_gate
 ALLOWED = frozenset({111})
 
 
-def _update(chat_id):
+def _update(chat_id, user_id=None):
     chat = SimpleNamespace(id=chat_id) if chat_id is not None else None
-    return SimpleNamespace(effective_chat=chat)
+    user = SimpleNamespace(id=user_id) if user_id is not None else None
+    return SimpleNamespace(effective_chat=chat, effective_user=user)
 
 
 def test_allowed_chat():
@@ -34,3 +35,10 @@ async def test_gate_blocks_denied_update():
     gate = make_auth_gate(ALLOWED)
     with pytest.raises(ApplicationHandlerStop):
         await gate(_update(999), None)
+
+
+async def test_denied_update_logs_chat_and_user(caplog):
+    gate = make_auth_gate(ALLOWED)
+    with pytest.raises(ApplicationHandlerStop):
+        await gate(_update(999, user_id=42), None)
+    assert "chat_id=999 user_id=42" in caplog.text

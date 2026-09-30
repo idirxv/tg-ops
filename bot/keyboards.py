@@ -82,6 +82,20 @@ def stack_detail_keyboard(stack: Stack) -> InlineKeyboardMarkup:
     )
 
 
+def error_keyboard(stack_name: str = "") -> InlineKeyboardMarkup:
+    """Recovery buttons after a failure: reload the stack, or the list."""
+    if not stack_name:
+        return stack_list_keyboard([])
+    return InlineKeyboardMarkup(
+        [
+            [
+                _button("🔄 Refresh", Action.SHOW, stack_name),
+                _button("⬅️ Back", Action.LIST),
+            ]
+        ]
+    )
+
+
 def confirm_stop_keyboard(stack_name: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
