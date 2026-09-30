@@ -12,6 +12,7 @@ from telegram.ext import (
     CommandHandler,
     TypeHandler,
 )
+from tornado.httpserver import HTTPServer
 
 from bot.auth import make_auth_gate
 from bot.config import Config, ConfigError
@@ -19,6 +20,20 @@ from bot.dockhand import DockhandClient
 from bot.handlers import cmd_docker, cmd_ping, on_callback, on_error
 
 log = logging.getLogger(__name__)
+
+# Telegram updates are a few KB; 1 MiB leaves ample headroom.
+WEBHOOK_MAX_BODY_BYTES = 1024 * 1024
+
+
+def limit_webhook_body_size(max_bytes: int = WEBHOOK_MAX_BODY_BYTES) -> None:
+    """Make the webhook server reject oversized bodies while reading them.
+
+    Tornado buffers the whole request body (100 MB by default) before PTB
+    checks the secret token, so a few unauthenticated uploads can push the
+    container past its memory limit. PTB builds its HTTPServer without size
+    options, so set the cap as a tornado-wide default instead.
+    """
+    HTTPServer.configure(None, max_body_size=max_bytes)
 
 
 def build_application(config: Config, client: DockhandClient) -> Application:
@@ -30,7 +45,8 @@ def build_application(config: Config, client: DockhandClient) -> Application:
         TypeHandler(Update, make_auth_gate(config.allowed_chat_ids)), group=-1
     )
     app.add_handler(CommandHandler("ping", cmd_ping))
-    app.add_handler(CommandHandler("docker", cmd_docker))
+    # Telegram clients send /start when a user first opens the bot.
+    app.add_handler(CommandHandler(["start", "docker"], cmd_docker))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_error_handler(on_error)
     return app
@@ -67,6 +83,7 @@ def main() -> int:
         app.run_polling(**run_kwargs)
     else:
         log.info("Webhook mode: listening on :%d", config.webhook.port)
+        limit_webhook_body_size()
         app.run_webhook(
             listen="0.0.0.0",
             port=config.webhook.port,

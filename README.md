@@ -39,7 +39,11 @@ Status legend:
 
 1. Message [@BotFather](https://t.me/BotFather), send `/newbot`, follow
    prompts, copy token.
-2. Optional: `/setcommands` with `start - list stacks` for nicer menu.
+2. Optional: `/setcommands` with `docker - list stacks` and
+   `ping - liveness check` for nicer menu (`/start` also lists stacks).
+3. Recommended: `/setjoingroups` → **Disable**, so nobody can add the bot
+   to a group, unless you really want to use it from a group (see
+   [Security](#security)).
 
 ### 2. Find chat ID
 
@@ -118,7 +122,19 @@ Why requests stay safe:
   so random scans of public hostname never reach handler code.
 - Container port published on **127.0.0.1 only** — reachable by
   host-network `cloudflared`, not LAN or internet.
+- Request bodies over 1 MiB are refused while being read. Tornado would
+  otherwise buffer up to 100 MB per request *before* the secret is checked,
+  so a few anonymous uploads could exceed the 256 MB memory limit.
 - Chat-ID and stack allowlists apply unchanged on top.
+
+Recommended extra layer: in **Cloudflare → Security → WAF → Custom rules**,
+block every request to `tgbot.<your-domain>` whose source IP is not in
+Telegram's ranges `149.154.160.0/20` and `91.108.4.0/22`. Anonymous
+traffic then never reaches the tunnel at all.
+
+**Do not put the `cloudflared` stack in `ALLOWED_STACKS` in webhook mode:**
+stopping it from the bot cuts the bot's only way in, and you won't be able
+to start it again from Telegram.
 
 **Rollback:** set `BOT_MODE=polling` and redeploy — bot removes
 webhook automatically when polling starts.
@@ -130,10 +146,23 @@ webhook automatically when polling starts.
 - **Stack allowlist**: bot can only see and act on `ALLOWED_STACKS`.
   Check runs server-side on every button press — inline button data is
   client-forgeable, never trusted.
-- **No Docker socket**: bot only talks to Dockhand API; compromise
-  of bot doesn't grant host-level Docker access.
+- **No Docker socket**: bot only talks to Dockhand API. Note that the
+  Dockhand API token is still a powerful credential: it carries the
+  permissions of the Dockhand user who created it, and an admin can deploy a
+  stack that mounts the host filesystem. Treat it as host-level access and,
+  if your Dockhand edition has roles, create the token from a dedicated user
+  that can only operate stacks.
+- **Your Telegram account is the key**: anyone who takes over an allowlisted
+  Telegram account controls the stacks. Enable Telegram's two-step
+  verification (cloud password) and review active sessions regularly.
+- **Audit log**: every start/stop/restart is logged at INFO with the
+  Telegram user id, username, chat id and outcome.
 - **Container hardening**: non-root user, read-only filesystem, `cap_drop:
-  ALL`, `no-new-privileges`, no published ports, memory/CPU limits.
+  ALL`, `no-new-privileges`, `noexec` tmpfs, PID/memory/CPU limits; the only
+  published port is `127.0.0.1:5555` (webhook mode).
+- **Group chats**: authorization is per *chat*. If an allowlisted chat is a
+  group, every member of that group can control the allowlisted stacks.
+  Prefer a private chat with the bot.
 - **Never add bot's own stack to `ALLOWED_STACKS`** — stopping it would
   leave nothing to restart it.
 - Use **dedicated Dockhand API token**, revoke if bot's
