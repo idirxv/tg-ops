@@ -26,6 +26,12 @@ services:
     cap_drop:
       - ALL
     pids_limit: 64
+    # Every denied update is logged; cap disk use if someone spams the bot.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     mem_limit: 256m
     cpus: 0.5
     # If Dockhand is reachable only on a named Docker network, attach it:

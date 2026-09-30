@@ -92,13 +92,18 @@ def _split(value: str) -> list[str]:
 
 def _parse_chat_ids(raw: str) -> frozenset[int]:
     try:
-        return frozenset(int(part) for part in _split(raw))
+        ids = frozenset(int(part) for part in _split(raw))
     except ValueError as exc:
         raise ConfigError("ALLOWED_CHAT_IDS must be comma-separated integers") from exc
+    if not ids:
+        raise ConfigError("ALLOWED_CHAT_IDS must list at least one chat id")
+    return ids
 
 
 def _parse_stacks(raw: str) -> tuple[str, ...]:
     stacks = tuple(dict.fromkeys(_split(raw)))
+    if not stacks:
+        raise ConfigError("ALLOWED_STACKS must list at least one stack name")
     for name in stacks:
         if "|" in name:
             raise ConfigError(f"stack name may not contain '|': {name!r}")
