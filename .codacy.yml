@@ -1,0 +1,6 @@
+---
+# pytest relies on plain assert statements; Bandit's B101 is meaningless there.
+engines:
+  bandit:
+    exclude_paths:
+      - "tests/**"
