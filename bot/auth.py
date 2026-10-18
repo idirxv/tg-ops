@@ -23,7 +23,12 @@ def make_auth_gate(allowed_chat_ids: frozenset[int]):
     async def gate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not is_authorized(update, allowed_chat_ids):
             chat = update.effective_chat
-            log.warning("Denied update from chat_id=%s", chat.id if chat else "<none>")
+            user = update.effective_user
+            log.warning(
+                "Denied update from chat_id=%s user_id=%s",
+                chat.id if chat else "<none>",
+                user.id if user else "<none>",
+            )
             raise ApplicationHandlerStop
 
     return gate

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 env:
@@ -11,7 +12,32 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Same uv version as the Dockerfile; pipx ships with GitHub's runners,
+      # so no extra third-party action is needed.
+      - name: Set up uv
+        run: |
+          pipx install uv==0.11.28
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Lint, type-check and test
+        run: |
+          uv sync --frozen
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q
+
   build-and-push:
+    needs: test
+    # Pull requests only run the tests; images come from main, tags or manual runs.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
