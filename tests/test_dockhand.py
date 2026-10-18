@@ -2,7 +2,7 @@ import pytest
 import requests
 import responses
 
-from bot.dockhand import DockhandClient, DockhandError
+from bot.dockhand import DockhandClient, DockhandError, DockhandTimeout
 
 BASE = "http://dockhand:3000"
 
@@ -83,3 +83,24 @@ def test_invalid_json_raises(client):
     responses.get(f"{BASE}/api/stacks", body="<html>login</html>")
     with pytest.raises(DockhandError, match="JSON"):
         client.list_stacks()
+
+
+@responses.activate
+def test_read_timeout_raises_timeout(client):
+    """The request reached Dockhand: the action may still be running."""
+    responses.post(
+        f"{BASE}/api/stacks/media/restart", body=requests.exceptions.ReadTimeout()
+    )
+    with pytest.raises(DockhandTimeout, match="did not answer"):
+        client.stack_action("media", "restart")
+
+
+@responses.activate
+def test_connect_timeout_is_unreachable_not_timeout(client):
+    """Nothing reached Dockhand, so nothing can be running."""
+    responses.post(
+        f"{BASE}/api/stacks/media/restart", body=requests.exceptions.ConnectTimeout()
+    )
+    with pytest.raises(DockhandError, match="unreachable") as exc:
+        client.stack_action("media", "restart")
+    assert not isinstance(exc.value, DockhandTimeout)

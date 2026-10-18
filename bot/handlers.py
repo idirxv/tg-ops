@@ -11,12 +11,13 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from bot.config import Config
-from bot.dockhand import DockhandClient, DockhandError
+from bot.dockhand import DockhandClient, DockhandError, DockhandTimeout
 from bot.keyboards import (
     Action,
     CallbackError,
     confirm_stop_keyboard,
     decode,
+    error_keyboard,
     stack_detail_keyboard,
     stack_list_keyboard,
 )
@@ -116,12 +117,35 @@ async def _run_action(
     name: str,
 ) -> None:
     verb, wording = _ACTIONS[action]
+    user = query.from_user
+    chat_id = query.message.chat.id if query.message else "?"
+    # Audit trail: who changed what, and whether it worked.
+    log.info(
+        "Action %s on stack %r requested by user_id=%s (%s) in chat_id=%s",
+        verb,
+        name,
+        user.id,
+        f"@{user.username}" if user.username else user.full_name,
+        chat_id,
+    )
     await _safe_edit(
         query,
         f"⏳ {wording} <b>{html.escape(name)}</b>…",
         None,  # no buttons while the action runs: prevents double-taps
     )
-    await asyncio.to_thread(_client(context).stack_action, name, verb)
+    try:
+        await asyncio.to_thread(_client(context).stack_action, name, verb)
+    except DockhandTimeout as exc:
+        log.warning("Action %s on stack %r timed out: %s", verb, name, exc)
+        # Retrying blindly could run the action twice.
+        raise DockhandError(
+            f"{exc}. The {verb} may still be running: tap Refresh to see the"
+            " current state before retrying."
+        ) from exc
+    except DockhandError as exc:
+        log.warning("Action %s on stack %r failed: %s", verb, name, exc)
+        raise
+    log.info("Action %s on stack %r succeeded", verb, name)
     await _show_detail(query, context, name)
 
 
@@ -182,9 +206,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     except (DockhandError, ValueError) as exc:
         log.error("Callback %r failed: %s", query.data, exc)
         await _safe_edit(
-            query,
-            f"⚠️ {html.escape(str(exc))}\n\nSend /docker to reload.",
-            None,
+            query, f"⚠️ {html.escape(str(exc))}", error_keyboard(stack_name)
         )
 
 

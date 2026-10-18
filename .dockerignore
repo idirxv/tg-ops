@@ -1,0 +1,12 @@
+# Keep secrets and local artifacts out of the build context.
+.env
+.env.*
+!.env.example
+.git
+.github
+.venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests

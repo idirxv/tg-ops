@@ -16,6 +16,13 @@ class DockhandError(Exception):
     """A Dockhand API call failed."""
 
 
+class DockhandTimeout(DockhandError):
+    """Dockhand accepted the request but did not answer in time.
+
+    Unlike a connection failure, the operation may still be running.
+    """
+
+
 class DockhandClient:
     # (connect, read) timeouts: listing is quick; actions may pull images.
     LIST_TIMEOUT = (5, 15)
@@ -54,6 +61,11 @@ class DockhandClient:
         params = {"env": self._env} if self._env else None
         try:
             resp = self._session.request(method, url, params=params, timeout=timeout)
+        except requests.ReadTimeout as exc:
+            log.error("%s %s timed out after %ss", method, url, timeout[1])
+            raise DockhandTimeout(
+                f"Dockhand did not answer within {timeout[1]}s"
+            ) from exc
         except requests.RequestException as exc:
             log.error("%s %s failed: %s", method, url, exc)
             raise DockhandError(
