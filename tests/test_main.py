@@ -21,6 +21,26 @@ def test_build_application_wires_everything(config):
     assert CallbackQueryHandler in default_group
 
 
+def _handler_callbacks(app):
+    return [h.callback.__name__ for h in app.handlers[0]]
+
+
+def test_claude_panel_not_registered_without_claude_host(config):
+    app = build_application(config, MagicMock())
+    assert "cmd_claude" not in _handler_callbacks(app)
+    assert "claude_host" not in app.bot_data
+
+
+def test_claude_panel_registered_before_the_stack_callback_handler(config):
+    host = MagicMock()
+    app = build_application(config, MagicMock(), host)
+    names = _handler_callbacks(app)
+    assert app.bot_data["claude_host"] is host
+    assert "cmd_claude" in names
+    # first match in a group wins, so the claude. pattern must come first
+    assert names.index("on_claude_callback") < names.index("on_callback")
+
+
 def test_start_command_lists_stacks(config):
     """Telegram clients send /start on first contact."""
     app = build_application(config, MagicMock())

@@ -52,6 +52,14 @@ class Webhook:
 
 
 @dataclass(frozen=True)
+class ClaudeHost:
+    """Control service of the Claude Host; built only when both vars are set."""
+
+    url: str
+    token: str
+
+
+@dataclass(frozen=True)
 class Config:
     telegram_bot_token: str
     dockhand_url: str
@@ -62,6 +70,8 @@ class Config:
     log_level: str
     # None selects polling mode; a Webhook selects webhook mode.
     webhook: Webhook | None = None
+    # None disables the /claude feature entirely.
+    claude_host: ClaudeHost | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
@@ -83,6 +93,7 @@ class Config:
             dockhand_env=_parse_dockhand_env(env["DOCKHAND_ENV"]),
             log_level=_parse_log_level(env.get("LOG_LEVEL", "")),
             webhook=_parse_webhook(env),
+            claude_host=_parse_claude_host(env),
         )
 
 
@@ -114,17 +125,33 @@ def _parse_stacks(raw: str) -> tuple[str, ...]:
     return stacks
 
 
-def _parse_dockhand_url(raw: str) -> str:
+def _parse_http_url(raw: str, name: str, example: str) -> str:
     url = raw.strip().rstrip("/")
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise ConfigError(
-            "DOCKHAND_URL must be an http(s) URL like http://dockhand:3000, "
-            f"got {url!r}"
-        )
+        raise ConfigError(f"{name} must be an http(s) URL like {example}, got {url!r}")
     if parts.username or parts.password:
-        raise ConfigError("DOCKHAND_URL must not embed credentials")
+        raise ConfigError(f"{name} must not embed credentials")
     return url
+
+
+def _parse_dockhand_url(raw: str) -> str:
+    return _parse_http_url(raw, "DOCKHAND_URL", "http://dockhand:3000")
+
+
+def _parse_claude_host(env: Mapping[str, str]) -> ClaudeHost | None:
+    url = env.get("CLAUDE_CONTROL_URL", "").strip()
+    token = env.get("CLAUDE_CONTROL_TOKEN", "").strip()
+    if not url and not token:
+        return None
+    if not url or not token:
+        raise ConfigError(
+            "CLAUDE_CONTROL_URL and CLAUDE_CONTROL_TOKEN must be set together"
+        )
+    return ClaudeHost(
+        url=_parse_http_url(url, "CLAUDE_CONTROL_URL", "http://claude-code:8080"),
+        token=token,
+    )
 
 
 def _parse_log_level(raw: str) -> str:

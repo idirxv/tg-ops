@@ -1,6 +1,6 @@
 import pytest
 
-from bot.config import Config, ConfigError, Webhook
+from bot.config import ClaudeHost, Config, ConfigError, Webhook
 
 
 def test_valid_config_parses(base_env):
@@ -138,3 +138,34 @@ def test_allowlist_of_only_separators_rejected(base_env, var):
     """" , " passes the presence check but would silently allow nothing."""
     with pytest.raises(ConfigError, match=var):
         Config.from_env(base_env | {var: " , "})
+
+
+def test_claude_host_disabled_by_default(base_env):
+    assert Config.from_env(base_env).claude_host is None
+
+
+def test_claude_host_parsed(base_env):
+    cfg = Config.from_env(
+        base_env
+        | {
+            "CLAUDE_CONTROL_URL": " http://claude-code:8080/ ",
+            "CLAUDE_CONTROL_TOKEN": " t ",
+        }
+    )
+    assert cfg.claude_host == ClaudeHost(url="http://claude-code:8080", token="t")
+
+
+@pytest.mark.parametrize("var", ["CLAUDE_CONTROL_URL", "CLAUDE_CONTROL_TOKEN"])
+def test_claude_host_vars_must_be_set_together(base_env, var):
+    with pytest.raises(ConfigError, match="set together"):
+        Config.from_env(base_env | {var: "x"})
+
+
+@pytest.mark.parametrize(
+    "url", ["claude-code:8080", "ftp://claude-code", "http://user:pw@claude-code:8080"]
+)
+def test_invalid_claude_control_url_rejected(base_env, url):
+    with pytest.raises(ConfigError, match="CLAUDE_CONTROL_URL"):
+        Config.from_env(
+            base_env | {"CLAUDE_CONTROL_URL": url, "CLAUDE_CONTROL_TOKEN": "t"}
+        )

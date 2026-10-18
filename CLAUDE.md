@@ -31,8 +31,11 @@ Layering, inner to outer — each module depends only on the ones above it:
 | `bot/stacks.py` | Pure domain model: parses Dockhand's `/api/stacks` payload into `Stack`/`Container`, derives `StackStatus` |
 | `bot/dockhand.py` | Blocking `requests` client for Dockhand (`DockhandClient`), raises `DockhandError` |
 | `bot/keyboards.py` | Inline keyboards + the `<action>\|<stack>` callback-data codec (`encode`/`decode`) |
+| `bot/sessions.py` | Pure domain model: parses the control service's `/sessions` payload into `Session` |
+| `bot/claude_host.py` | Blocking `requests` client for the Claude Host control service (`ClaudeHostClient`), raises `ClaudeHostError` |
 | `bot/auth.py` | Chat-ID allowlist gate |
 | `bot/handlers.py` | `/ping`, `/docker`, callback dispatch, HTML rendering |
+| `bot/claude_keyboards.py`, `bot/claude_handlers.py` | The optional `/claude` panel: `claude.<action>\|<arg>` codec + keyboards, and its handlers |
 | `bot/main.py` | `build_application()` wiring + polling/webhook run modes |
 
 Key structural facts that span files:
@@ -60,6 +63,15 @@ Key structural facts that span files:
   `Action.CONFIRM_STOP` ("cstop") performs it. `_ACTIONS` maps the three executing actions to
   Dockhand verbs + progress wording; while an action runs the message shows `⏳` with no
   buttons to block double-taps.
+- **`/claude` is optional and separate.** It exists only when `Config.claude_host` is set
+  (`CLAUDE_CONTROL_URL` + `CLAUDE_CONTROL_TOKEN`, both or neither); `build_application` takes
+  the client as an optional third argument and registers the command and its
+  `^claude\.`-pattern `CallbackQueryHandler` only then. That handler must be added **before**
+  the catch-all stack `on_callback` (first match in a group wins). The client lives in
+  `bot_data["claude_host"]`, and like `DockhandClient` it is blocking, so use `asyncio.to_thread`.
+  The control service itself is in the home-services repo (`claude-code/control.py`); see
+  `docs/adr/0001-claude-host-control-service.md`. Its folder check is the real boundary for
+  "open a session in folder X": `claude_keyboards.decode` only checks the shape.
 - **Callback data is capped at 64 bytes by Telegram**, which is why `config._MAX_STACK_NAME_BYTES
   = 55` and stack names may not contain `|`. Changing the codec means revisiting both.
 
@@ -67,7 +79,8 @@ Key structural facts that span files:
 
 Required: `TELEGRAM_BOT_TOKEN`, `DOCKHAND_URL`, `DOCKHAND_API_TOKEN`, `ALLOWED_CHAT_IDS`,
 `ALLOWED_STACKS`, `DOCKHAND_ENV`. Optional: `LOG_LEVEL`, `BOT_MODE`, and in webhook mode
-`WEBHOOK_URL` (https only), `WEBHOOK_SECRET`, `WEBHOOK_PORT`. See `.env.example` and the
+`WEBHOOK_URL` (https only), `WEBHOOK_SECRET`, `WEBHOOK_PORT`; `CLAUDE_CONTROL_URL` and
+`CLAUDE_CONTROL_TOKEN` to enable `/claude`. See `.env.example` and the
 README table. Invalid config exits the process with code 1 before any network call.
 
 `DOCKHAND_ENV` must be the **numeric** environment id from `GET /api/environments` — Dockhand
