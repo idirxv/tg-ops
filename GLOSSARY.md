@@ -9,7 +9,7 @@ A Docker Compose project deployed by Dockhand. Only stacks on the allowlist can 
 _Avoid_: Service, project, container
 
 **Claude Host**:
-The home-lab container where Claude Code runs and where sessions live. It is the only one; it is not a Stack the bot may stop.
+The home-lab container where Claude Code runs and where sessions live. There is only one.
 _Avoid_: Claude bot, Claude Code bot
 
 **Session**:

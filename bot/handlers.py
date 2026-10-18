@@ -77,7 +77,7 @@ async def _fetch_stack(context: ContextTypes.DEFAULT_TYPE, name: str) -> Stack |
     return next((s for s in stacks if s.name == name), None)
 
 
-async def _safe_edit(
+async def safe_edit(
     query: CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | None
 ) -> None:
     """Edit the callback message, ignoring Telegram's 'message is not
@@ -93,7 +93,7 @@ async def _safe_edit(
 
 async def _show_list(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE) -> None:
     stacks = await _fetch_stacks(context)
-    await _safe_edit(query, render_list(stacks), stack_list_keyboard(stacks))
+    await safe_edit(query, render_list(stacks), stack_list_keyboard(stacks))
 
 
 async def _show_detail(
@@ -101,13 +101,13 @@ async def _show_detail(
 ) -> None:
     stack = await _fetch_stack(context, name)
     if stack is None:
-        await _safe_edit(
+        await safe_edit(
             query,
             f"⚠️ Stack <b>{html.escape(name)}</b> not found in Dockhand.",
             stack_list_keyboard([]),
         )
         return
-    await _safe_edit(query, render_detail(stack), stack_detail_keyboard(stack))
+    await safe_edit(query, render_detail(stack), stack_detail_keyboard(stack))
 
 
 async def _run_action(
@@ -128,7 +128,7 @@ async def _run_action(
         f"@{user.username}" if user.username else user.full_name,
         chat_id,
     )
-    await _safe_edit(
+    await safe_edit(
         query,
         f"⏳ {wording} <b>{html.escape(name)}</b>…",
         None,  # no buttons while the action runs: prevents double-taps
@@ -194,7 +194,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         elif action is Action.SHOW:
             await _show_detail(query, context, stack_name)
         elif action is Action.STOP:
-            await _safe_edit(
+            await safe_edit(
                 query,
                 f"Stop <b>{html.escape(stack_name)}</b>?",
                 confirm_stop_keyboard(stack_name),
@@ -205,7 +205,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await _run_action(query, context, action, stack_name)
     except (DockhandError, ValueError) as exc:
         log.error("Callback %r failed: %s", query.data, exc)
-        await _safe_edit(
+        await safe_edit(
             query, f"⚠️ {html.escape(str(exc))}", error_keyboard(stack_name)
         )
 

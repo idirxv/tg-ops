@@ -15,6 +15,9 @@ from telegram.ext import (
 from tornado.httpserver import HTTPServer
 
 from bot.auth import make_auth_gate
+from bot.claude_handlers import cmd_claude, on_claude_callback
+from bot.claude_host import ClaudeHostClient
+from bot.claude_keyboards import PATTERN
 from bot.config import Config, ConfigError
 from bot.dockhand import DockhandClient
 from bot.handlers import cmd_docker, cmd_ping, on_callback, on_error
@@ -36,7 +39,11 @@ def limit_webhook_body_size(max_bytes: int = WEBHOOK_MAX_BODY_BYTES) -> None:
     HTTPServer.configure(None, max_body_size=max_bytes)
 
 
-def build_application(config: Config, client: DockhandClient) -> Application:
+def build_application(
+    config: Config,
+    client: DockhandClient,
+    claude_host: ClaudeHostClient | None = None,
+) -> Application:
     app = Application.builder().token(config.telegram_bot_token).build()
     app.bot_data["config"] = config
     app.bot_data["client"] = client
@@ -47,6 +54,11 @@ def build_application(config: Config, client: DockhandClient) -> Application:
     app.add_handler(CommandHandler("ping", cmd_ping))
     # Telegram clients send /start when a user first opens the bot.
     app.add_handler(CommandHandler(["start", "docker"], cmd_docker))
+    if claude_host is not None:
+        app.bot_data["claude_host"] = claude_host
+        app.add_handler(CommandHandler("claude", cmd_claude))
+        # Must precede the catch-all stack handler: first match in a group wins.
+        app.add_handler(CallbackQueryHandler(on_claude_callback, pattern=PATTERN))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_error_handler(on_error)
     return app
@@ -69,11 +81,17 @@ def main() -> int:
     client = DockhandClient(
         config.dockhand_url, config.dockhand_api_token, config.dockhand_env
     )
-    app = build_application(config, client)
+    claude_host = (
+        ClaudeHostClient(config.claude_host.url, config.claude_host.token)
+        if config.claude_host
+        else None
+    )
+    app = build_application(config, client, claude_host)
     log.info(
-        "Bot starting: %d allowed chat(s), stacks: %s",
+        "Bot starting: %d allowed chat(s), stacks: %s, claude host: %s",
         len(config.allowed_chat_ids),
         ", ".join(config.allowed_stacks),
+        "enabled" if claude_host else "disabled",
     )
     run_kwargs: dict[str, Any] = {
         "allowed_updates": [Update.MESSAGE, Update.CALLBACK_QUERY],

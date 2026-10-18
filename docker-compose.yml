@@ -15,6 +15,9 @@ services:
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       WEBHOOK_PORT: ${WEBHOOK_PORT:-5555}
+      # Optional: both set enables /claude (list, open and close Claude sessions)
+      CLAUDE_CONTROL_URL: ${CLAUDE_CONTROL_URL:-}
+      CLAUDE_CONTROL_TOKEN: ${CLAUDE_CONTROL_TOKEN:-}
     # Loopback-only: reachable by host-network cloudflared, not LAN/internet.
     ports:
       - "127.0.0.1:5555:5555"
@@ -37,7 +40,11 @@ services:
     # If Dockhand is reachable only on a named Docker network, attach it:
     networks:
       - dockhand
+      # Reaches the claude-code stack's control service; unused unless /claude is on
+      - shared_network
 
 networks:
   dockhand:
+    external: true
+  shared_network:
     external: true
