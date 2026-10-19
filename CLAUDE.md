@@ -72,6 +72,10 @@ Key structural facts that span files:
   The control service itself is in the home-services repo (`claude-code/control.py`); see
   `docs/adr/0001-claude-host-control-service.md`. Its folder check is the real boundary for
   "open a session in folder X": `claude_keyboards.decode` only checks the shape.
+  A session's `Activity` comes from the payload's `status`: `claude agents --json` gives one
+  only to sessions with a live process, so a missing `status` means **Retired** (stopped by
+  the host under memory pressure). Retired sessions get no Close button — `claude stop`
+  fails on them.
 - **Callback data is capped at 64 bytes by Telegram**, which is why `config._MAX_STACK_NAME_BYTES
   = 55` and stack names may not contain `|`. Changing the codec means revisiting both.
 

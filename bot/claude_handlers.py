@@ -20,9 +20,11 @@ from bot.claude_keyboards import (
 )
 from bot.handlers import safe_edit
 from bot.keyboards import CallbackError
-from bot.sessions import Session, parse_sessions
+from bot.sessions import Activity, Session, parse_sessions
 
 log = logging.getLogger(__name__)
+
+_ICONS = {Activity.BUSY: "⚙️", Activity.IDLE: "💤", Activity.RETIRED: "⏸️"}
 
 
 def _host(context: ContextTypes.DEFAULT_TYPE) -> ClaudeHostClient:
@@ -40,9 +42,15 @@ def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") 
     else:
         lines.append("<b>Claude sessions</b> — tap one to close it.")
         for s in sessions:
-            icon = "⚙️" if s.busy else "💤"
+            icon = _ICONS[s.activity]
             folder = html.escape(s.folder) or "workspace root"
             lines.append(f"{icon} <b>{html.escape(s.name)}</b> · <code>{folder}</code>")
+        if any(s.activity is Activity.RETIRED for s in sessions):
+            lines.append(
+                "⏸️ = stopped by the host while waiting for you. Its conversation "
+                "is kept: resume it on the host with "
+                "<code>claude attach &lt;id&gt;</code>."
+            )
     return "\n".join(lines)
 
 
@@ -76,6 +84,11 @@ async def _confirm_close(
     session = next((s for s in sessions if s.id == session_id), None)
     if session is None:
         await _show_list(query, context, "That session is already closed.")
+        return
+    if session.activity is Activity.RETIRED:
+        await _show_list(
+            query, context, "That session was already stopped by the host."
+        )
         return
     await safe_edit(
         query,

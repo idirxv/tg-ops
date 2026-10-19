@@ -1,6 +1,6 @@
 import pytest
 
-from bot.sessions import Session, parse_sessions
+from bot.sessions import Activity, Session, parse_sessions
 
 
 def _entry(**overrides):
@@ -22,9 +22,16 @@ def test_parse_maps_fields_and_login_state():
     )
     assert logged_in is True
     assert sessions == [
-        Session("dbd65fb7", "greeting exchange", "petuka-db", busy=False),
-        Session("ab12cd34", "greeting exchange", "petuka-db", busy=True),
+        Session("dbd65fb7", "greeting exchange", "petuka-db", Activity.IDLE),
+        Session("ab12cd34", "greeting exchange", "petuka-db", Activity.BUSY),
     ]
+
+
+def test_session_without_status_is_retired():
+    # What `claude agents --json` lists for a background session whose
+    # process the host stopped: no pid, no status, state still "blocked".
+    _, [session] = parse_sessions({"sessions": [_entry(status=None)]})
+    assert session.activity is Activity.RETIRED
 
 
 def test_logged_out_unless_explicitly_true():

@@ -24,6 +24,10 @@ _Avoid_: Create, spawn, launch
 Stop a running Session's process while keeping its conversation, so it can be resumed later. It never deletes the conversation.
 _Avoid_: Delete, kill, remove
 
+**Retired (Session)**:
+A Session whose process the Claude Host stopped on its own: Claude Code retires a background Session that waits on its user while memory runs low. It stays listed and its conversation is kept, but it can no longer be Closed, only resumed on the host (`claude attach <id>`).
+_Avoid_: Dead, ghost, zombie
+
 **Session folder**:
 The directory, inside the Claude Host's workspace, that a Session works in. Defaults to the workspace root.
 _Avoid_: Project, repo, cwd
