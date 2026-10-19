@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from bot.claude_handlers import on_claude_callback, render_sessions
 from bot.claude_host import ClaudeHostError, ClaudeHostTimeout
-from bot.sessions import Session
+from bot.sessions import Activity, Session
 
 SESSIONS_PAYLOAD = {
     "logged_in": True,
@@ -45,16 +45,27 @@ def test_render_flags_logged_out_host():
 def test_render_shows_state_folder_and_notice():
     text = render_sessions(
         True,
-        [Session("a", "busy one", "", True), Session("b", "idle one", "alpha", False)],
+        [
+            Session("a", "busy one", "", Activity.BUSY),
+            Session("b", "idle one", "alpha", Activity.IDLE),
+        ],
         notice="✅ done",
     )
     assert text.startswith("✅ done")
     assert "⚙️ <b>busy one</b> · <code>workspace root</code>" in text
     assert "💤 <b>idle one</b> · <code>alpha</code>" in text
+    assert "stopped by the host" not in text
+
+
+def test_render_marks_retired_sessions_and_explains_them():
+    text = render_sessions(True, [Session("a", "gone", "", Activity.RETIRED)])
+    assert "⏸️ <b>gone</b>" in text
+    assert "stopped by the host" in text
+    assert "claude attach &lt;id&gt;" in text
 
 
 def test_render_escapes_html():
-    text = render_sessions(True, [Session("a", "<b>x</b>", "<i>", False)])
+    text = render_sessions(True, [Session("a", "<b>x</b>", "<i>", Activity.IDLE)])
     assert "<b>x</b>" not in text
     assert "&lt;b&gt;x&lt;/b&gt;" in text
     assert "&lt;i&gt;" in text
@@ -86,6 +97,15 @@ async def test_close_of_vanished_session_falls_back_to_list(config):
     update, q = _update("claude.close|dbd65fb7")
     await on_claude_callback(update, _ctx(config, host))
     assert "already closed" in q.edit_message_text.await_args.args[0]
+
+
+async def test_close_of_retired_session_falls_back_to_list(config):
+    entry = SESSIONS_PAYLOAD["sessions"][0] | {"status": None}
+    host = _host({"logged_in": True, "sessions": [entry]})
+    update, q = _update("claude.close|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.close_session.assert_not_called()
+    assert "already stopped by the host" in q.edit_message_text.await_args.args[0]
 
 
 async def test_confirmed_close_calls_host_and_rerenders(config):

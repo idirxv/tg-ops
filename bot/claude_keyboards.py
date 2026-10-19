@@ -15,7 +15,7 @@ from enum import StrEnum
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.keyboards import SEP, CallbackError
-from bot.sessions import SESSION_ID, Session
+from bot.sessions import SESSION_ID, Activity, Session
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +68,12 @@ def _nav_row() -> list[InlineKeyboardButton]:
 
 
 def sessions_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
-    rows = [[_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)] for s in sessions]
+    # A retired session has no process left for `claude stop` to close.
+    rows = [
+        [_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)]
+        for s in sessions
+        if s.activity is not Activity.RETIRED
+    ]
     rows.append(_nav_row())
     return InlineKeyboardMarkup(rows)
 

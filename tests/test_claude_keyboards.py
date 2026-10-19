@@ -9,7 +9,7 @@ from bot.claude_keyboards import (
     sessions_keyboard,
 )
 from bot.keyboards import CallbackError
-from bot.sessions import Session
+from bot.sessions import Activity, Session
 
 
 @pytest.mark.parametrize(
@@ -52,8 +52,14 @@ def test_folder_may_contain_the_separator():
     assert decode("claude.open|a|b") == (ClaudeAction.OPEN, "a|b")
 
 
-def test_sessions_keyboard_has_one_close_row_per_session_and_nav():
-    kb = sessions_keyboard([Session("dbd65fb7", "one", "", False)])
+def test_sessions_keyboard_has_one_close_row_per_live_session_and_nav():
+    kb = sessions_keyboard(
+        [
+            Session("dbd65fb7", "one", "", Activity.IDLE),
+            Session("ab12cd34", "gone", "", Activity.RETIRED),
+        ]
+    )
+    assert len(kb.inline_keyboard) == 2  # the retired session has no close row
     assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
     nav = [b.callback_data for b in kb.inline_keyboard[-1]]
     assert nav == ["claude.new|", "claude.list|", "claude.exit|"]
