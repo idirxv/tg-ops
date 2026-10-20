@@ -32,6 +32,7 @@ Layering, inner to outer — each module depends only on the ones above it:
 | `bot/dockhand.py` | Blocking `requests` client for Dockhand (`DockhandClient`), raises `DockhandError` |
 | `bot/keyboards.py` | Inline keyboards + the `<action>\|<stack>` callback-data codec (`encode`/`decode`) |
 | `bot/sessions.py` | Pure domain model: parses the control service's `/sessions` payload into `Session` |
+| `bot/claude_version.py` | Pure domain model: parses `/version` and `/update` into `VersionCheck`/`UpdateResult`, compares versions numerically |
 | `bot/claude_host.py` | Blocking `requests` client for the Claude Host control service (`ClaudeHostClient`), raises `ClaudeHostError` |
 | `bot/auth.py` | Chat-ID allowlist gate |
 | `bot/handlers.py` | `/ping`, `/docker`, callback dispatch, HTML rendering |
@@ -76,6 +77,10 @@ Key structural facts that span files:
   only to sessions with a live process, so a missing `status` means **Retired** (stopped by
   the host under memory pressure). Retired sessions get no Close button — `claude stop`
   fails on them.
+  **Check update** (`GET /version`) reports the Installed version and the newest release on
+  the host's channel (`latest: null` when that lookup fails); **Update** (`POST /update`)
+  runs `claude update` and carries no version in its callback data, so it can only ever go
+  to the newest. Running Sessions keep their version until Closed.
 - **Callback data is capped at 64 bytes by Telegram**, which is why `config._MAX_STACK_NAME_BYTES
   = 55` and stack names may not contain `|`. Changing the codec means revisiting both.
 

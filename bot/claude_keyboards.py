@@ -14,6 +14,7 @@ from enum import StrEnum
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from bot.claude_version import VersionCheck
 from bot.keyboards import SEP, CallbackError
 from bot.sessions import SESSION_ID, Activity, Session
 
@@ -32,6 +33,9 @@ class ClaudeAction(StrEnum):
     OPEN = "claude.open"  # opens a session in the folder it carries
     CLOSE = "claude.close"  # asks for confirmation
     CONFIRM_CLOSE = "claude.cclose"  # actually closes
+    CHECK_UPDATE = "claude.check"  # shows the Installed and latest versions
+    # Updates to the newest release; it carries no version to pick.
+    UPDATE = "claude.update"
     EXIT = "claude.exit"
 
 
@@ -75,6 +79,15 @@ def sessions_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
         if s.activity is not Activity.RETIRED
     ]
     rows.append(_nav_row())
+    rows.append([_button("🔄 Check update", ClaudeAction.CHECK_UPDATE)])
+    return InlineKeyboardMarkup(rows)
+
+
+def version_keyboard(check: VersionCheck) -> InlineKeyboardMarkup:
+    rows = []
+    if check.update_available:
+        rows.append([_button(f"⬆️ Update to {check.latest}", ClaudeAction.UPDATE)])
+    rows.append([_button("⬅️ Back", ClaudeAction.LIST)])
     return InlineKeyboardMarkup(rows)
 
 

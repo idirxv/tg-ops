@@ -1,4 +1,5 @@
-"""Telegram handlers for the /claude panel: list, open and close Sessions."""
+"""Telegram handlers for the /claude panel: list, open and close Sessions, and
+Update Claude Code on the Claude Host."""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +18,9 @@ from bot.claude_keyboards import (
     error_keyboard,
     folder_keyboard,
     sessions_keyboard,
+    version_keyboard,
 )
+from bot.claude_version import VersionCheck, parse_update, parse_version_check
 from bot.handlers import safe_edit
 from bot.keyboards import CallbackError
 from bot.sessions import Activity, Session, parse_sessions
@@ -51,6 +54,20 @@ def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") 
                 "is kept: resume it on the host with "
                 "<code>claude attach &lt;id&gt;</code>."
             )
+    return "\n".join(lines)
+
+
+def render_version(check: VersionCheck) -> str:
+    lines = [
+        "<b>Claude Code</b>",
+        f"Installed: <code>{html.escape(check.installed)}</code>",
+    ]
+    if check.latest is None:
+        lines.append("⚠️ Couldn't check for updates.")
+    elif check.update_available:
+        lines.append(f"Latest: <code>{html.escape(check.latest)}</code>")
+    else:
+        lines.append(f"✅ Latest on the {html.escape(check.channel)} channel.")
     return "\n".join(lines)
 
 
@@ -137,6 +154,47 @@ async def _close_session(
     await _show_list(query, context, "✅ Session closed.")
 
 
+async def _check_update(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    check = parse_version_check(await asyncio.to_thread(_host(context).version))
+    await safe_edit(query, render_version(check), version_keyboard(check))
+
+
+async def _update_claude(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    _audit(query, "update")
+    await safe_edit(query, "⏳ Updating Claude Code…", None)
+    try:
+        payload = await asyncio.to_thread(_host(context).update)
+    except ClaudeHostTimeout as exc:
+        log.warning("Claude Code update timed out: %s", exc)
+        raise ClaudeHostError(
+            f"{exc}. The update may still be running: check again in a minute."
+        ) from exc
+    result = parse_update(payload)
+    log.info("Updated Claude Code %s -> %s", result.before, result.after)
+    if not result.changed:
+        notice = f"✅ Already up to date ({html.escape(result.after)})."
+    else:
+        notice = (
+            f"✅ Updated Claude Code {html.escape(result.before)} → "
+            f"{html.escape(result.after)}."
+        )
+    logged_in, sessions = await _fetch_sessions(context)
+    # Retired sessions have no process left: they resume on the new version.
+    running = sum(s.activity is not Activity.RETIRED for s in sessions)
+    if result.changed and running:
+        keep = "session keeps" if running == 1 else "sessions keep"
+        notice += (
+            f" {running} running {keep} {html.escape(result.before)} until closed."
+        )
+    await safe_edit(
+        query, render_sessions(logged_in, sessions, notice), sessions_keyboard(sessions)
+    )
+
+
 async def cmd_claude(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     if message is None:  # CommandHandler always carries one
@@ -182,6 +240,10 @@ async def on_claude_callback(
             await _confirm_close(query, context, arg)
         elif action is ClaudeAction.CONFIRM_CLOSE:
             await _close_session(query, context, arg)
+        elif action is ClaudeAction.CHECK_UPDATE:
+            await _check_update(query, context)
+        elif action is ClaudeAction.UPDATE:
+            await _update_claude(query, context)
         else:  # EXIT
             await query.delete_message()
     except (ClaudeHostError, ValueError) as exc:

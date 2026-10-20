@@ -30,6 +30,10 @@ class ClaudeHostClient:
     LIST_TIMEOUT = (5, 15)
     OPEN_TIMEOUT = (5, 75)
     CLOSE_TIMEOUT = (5, 45)
+    # Checking runs `claude --version` and a release lookup capped at 10s;
+    # updating waits on `claude update`, which the service gives up on after 150s.
+    VERSION_TIMEOUT = (5, 30)
+    UPDATE_TIMEOUT = (5, 180)
 
     def __init__(self, base_url: str, token: str):
         self._base = base_url.rstrip("/")
@@ -57,6 +61,13 @@ class ClaudeHostClient:
         self._request(
             "POST", f"/sessions/{quote(session_id, safe='')}/stop", self.CLOSE_TIMEOUT
         )
+
+    def version(self) -> Any:
+        return self._json(self._request("GET", "/version", self.VERSION_TIMEOUT))
+
+    def update(self) -> Any:
+        """Update Claude Code to the newest release on the host's channel."""
+        return self._json(self._request("POST", "/update", self.UPDATE_TIMEOUT))
 
     @staticmethod
     def _json(resp: requests.Response) -> Any:

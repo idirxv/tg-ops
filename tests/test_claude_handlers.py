@@ -1,7 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from bot.claude_handlers import on_claude_callback, render_sessions
+from bot.claude_handlers import on_claude_callback, render_sessions, render_version
 from bot.claude_host import ClaudeHostError, ClaudeHostTimeout
+from bot.claude_version import VersionCheck
 from bot.sessions import Activity, Session
 
 SESSIONS_PAYLOAD = {
@@ -31,6 +32,12 @@ def _host(payload=SESSIONS_PAYLOAD):
     host = MagicMock()
     host.list_sessions.return_value = payload
     host.list_folders.return_value = ["alpha", "petuka-db"]
+    host.version.return_value = {
+        "installed": "2.1.305",
+        "latest": "2.1.306",
+        "channel": "latest",
+    }
+    host.update.return_value = {"before": "2.1.305", "after": "2.1.306"}
     return host
 
 
@@ -172,3 +179,91 @@ async def test_actions_are_audit_logged(config, caplog):
         await on_claude_callback(update, _ctx(config, host))
     assert "close session dbd65fb7 requested by user_id=42 (@alice)" in caplog.text
     assert "Closed session dbd65fb7" in caplog.text
+
+
+def test_render_version_with_update_available():
+    text = render_version(VersionCheck("2.1.305", "2.1.306", "latest"))
+    assert "Installed: <code>2.1.305</code>" in text
+    assert "Latest: <code>2.1.306</code>" in text
+
+
+def test_render_version_up_to_date():
+    text = render_version(VersionCheck("2.1.305", "2.1.305", "latest"))
+    assert "Installed: <code>2.1.305</code>" in text
+    assert "✅" in text
+    assert "Latest:" not in text
+
+
+def test_render_version_when_latest_is_unknown():
+    text = render_version(VersionCheck("2.1.305", None, "latest"))
+    assert "Installed: <code>2.1.305</code>" in text
+    assert "Couldn't check for updates" in text
+
+
+async def test_check_update_shows_versions_and_update_button(config):
+    host = _host()
+    update, q = _update("claude.check|")
+    await on_claude_callback(update, _ctx(config, host))
+    call = q.edit_message_text.await_args
+    assert "2.1.306" in call.args[0]
+    buttons = [
+        row[0].callback_data for row in call.kwargs["reply_markup"].inline_keyboard
+    ]
+    assert buttons == ["claude.update|", "claude.list|"]
+    host.update.assert_not_called()
+
+
+async def test_update_reports_versions_and_running_sessions(config):
+    host = _host(
+        {
+            "logged_in": True,
+            "sessions": [
+                {"id": "dbd65fb7", "name": "a", "status": "idle"},
+                {"id": "ab12cd34", "name": "b", "status": "busy"},
+                {"id": "00000000", "name": "c"},  # retired: resumes on the new one
+            ],
+        }
+    )
+    update, q = _update("claude.update|")
+    await on_claude_callback(update, _ctx(config, host))
+    host.update.assert_called_once_with()
+    assert q.edit_message_text.await_args_list[0].args[0].startswith("⏳")
+    assert q.edit_message_text.await_args_list[0].kwargs["reply_markup"] is None
+    text = q.edit_message_text.await_args.args[0]
+    assert "2.1.305 → 2.1.306" in text
+    assert "2 running sessions keep 2.1.305 until closed" in text
+
+
+async def test_update_with_one_running_session_uses_singular(config):
+    host = _host()
+    update, q = _update("claude.update|")
+    await on_claude_callback(update, _ctx(config, host))
+    assert "1 running session keeps 2.1.305" in q.edit_message_text.await_args.args[0]
+
+
+async def test_update_already_up_to_date(config):
+    host = _host()
+    host.update.return_value = {"before": "2.1.306", "after": "2.1.306"}
+    update, q = _update("claude.update|")
+    await on_claude_callback(update, _ctx(config, host))
+    text = q.edit_message_text.await_args.args[0]
+    assert "Already up to date" in text
+    assert "running session" not in text
+
+
+async def test_update_timeout_warns_it_may_still_run(config):
+    host = _host()
+    host.update.side_effect = ClaudeHostTimeout("did not answer within 180s")
+    update, q = _update("claude.update|")
+    await on_claude_callback(update, _ctx(config, host))
+    assert "may still be running" in q.edit_message_text.await_args.args[0]
+
+
+async def test_update_is_audit_logged(config, caplog):
+    update, q = _update("claude.update|")
+    q.from_user.id = 42
+    q.from_user.username = "alice"
+    with caplog.at_level("INFO", logger="bot.claude_handlers"):
+        await on_claude_callback(update, _ctx(config, _host()))
+    assert "update requested by user_id=42 (@alice)" in caplog.text
+    assert "Updated Claude Code 2.1.305 -> 2.1.306" in caplog.text

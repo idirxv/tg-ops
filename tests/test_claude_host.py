@@ -50,6 +50,19 @@ def test_close_session_posts_to_stop(client):
 
 
 @responses.activate
+def test_version_returns_payload(client):
+    body = {"installed": "2.1.305", "latest": "2.1.306", "channel": "latest"}
+    responses.get(f"{BASE}/version", json=body)
+    assert client.version() == body
+
+
+@responses.activate
+def test_update_posts_and_returns_payload(client):
+    responses.post(f"{BASE}/update", json={"before": "2.1.305", "after": "2.1.306"})
+    assert client.update() == {"before": "2.1.305", "after": "2.1.306"}
+
+
+@responses.activate
 def test_service_error_message_is_surfaced(client):
     responses.post(
         f"{BASE}/sessions", json={"error": "Claude is not logged in"}, status=409
