@@ -27,7 +27,7 @@ Status legend:
 - `/ping` replies `Pong` — liveness check.
 - `/claude` (optional, see [Claude sessions](#claude-sessions)) lists the
   Claude Code sessions running on the Claude Host, with buttons to close
-  one or open a new one in a chosen folder.
+  one, open a new one in a chosen folder, or update Claude Code.
 - `/docker` shows one button per allowlisted stack with status dot.
   Tapping stack opens detail view (per-container states) with actions
   valid for its state: **Start** when stopped, **Stop / Restart** when
@@ -112,6 +112,11 @@ through Remote Control.
   resumed from the Claude app).
 - **New**: pick the workspace root or a folder directly under it. Only
   folders that already exist are offered.
+- **Check update**: shows the Claude Code version the host starts new
+  sessions with, and the newest release on its update channel. When a newer
+  one exists, **Update** installs it right away (Claude Code also updates
+  itself in the background). Running sessions keep their version until
+  closed; the result says how many.
 - The bot talks to a small HTTP service baked into the `claude-code` image
   (see [ADR 0001](docs/adr/0001-claude-host-control-service.md)) over a
   shared Docker network, authenticated with `CLAUDE_CONTROL_TOKEN`. Both
@@ -173,8 +178,9 @@ webhook automatically when polling starts.
   client-forgeable, never trusted.
 - **Claude sessions**: `/claude` follows the same chat allowlist. Closing
   needs a confirm tap, and the folder list is read from the host on every
-  open, so a forged button can't reach outside the workspace. Open and
-  close are written to the audit log like stack actions. The control token
+  open, so a forged button can't reach outside the workspace. Update
+  always installs the newest release, never a version named in the button.
+  Open, close and update are written to the audit log like stack actions. The control token
   can open sessions on the host, so treat it like the Dockhand token.
 - **No Docker socket**: bot only talks to Dockhand API. Note that the
   Dockhand API token is still a powerful credential: it carries the

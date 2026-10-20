@@ -28,6 +28,14 @@ _Avoid_: Delete, kill, remove
 A Session whose process the Claude Host stopped on its own: Claude Code retires a background Session that waits on its user while memory runs low. It stays listed and its conversation is kept, but it can no longer be Closed, only resumed on the host (`claude attach <id>`).
 _Avoid_: Dead, ghost, zombie
 
+**Installed version**:
+The Claude Code version the Claude Host starts new Sessions with. Running Sessions keep the version they started with until they are Closed and resumed.
+_Avoid_: Current version, running version
+
+**Update (Claude Code)**:
+Install the newest Claude Code release on the Claude Host. It changes the Installed version, never the running Sessions. Claude Code also updates itself in the background; an Update just does it now.
+_Avoid_: Upgrade, restart
+
 **Session folder**:
 The directory, inside the Claude Host's workspace, that a Session works in. Defaults to the workspace root.
 _Avoid_: Project, repo, cwd
