@@ -27,7 +27,8 @@ Status legend:
 - `/ping` replies `Pong` — liveness check.
 - `/claude` (optional, see [Claude sessions](#claude-sessions)) lists the
   Claude Code sessions running on the Claude Host, with buttons to close
-  one, open a new one in a chosen folder, or update Claude Code.
+  one, resume one the host stopped, open a new one in a chosen folder, or
+  update Claude Code.
 - `/docker` shows one button per allowlisted stack with status dot.
   Tapping stack opens detail view (per-container states) with actions
   valid for its state: **Start** when stopped, **Stop / Restart** when
@@ -103,13 +104,17 @@ Bad or missing config makes container exit immediately with clear error message.
 ## Claude sessions
 
 `/claude` manages Claude Code **sessions** on the Claude Host (the
-`claude-code` container). The bot lists, opens and closes them; the
+`claude-code` container). The bot lists, opens, closes and resumes them; the
 conversation itself stays in the Claude app, where each session appears
 through Remote Control.
 
 - **List**: one button per session, `⚙️` working or `💤` idle, with its folder.
   Tap one to close it (asks first; the conversation is kept and can be
   resumed from the Claude app).
+- **Resume**: a session the host stopped on its own while it waited for you
+  (`⏸️`, Claude Code does this under memory pressure) gets a `▶️` button
+  instead. Tapping it restarts the session on the installed version, keeping
+  its conversation; it can then be answered from the Claude app and closed.
 - **New**: pick the workspace root or a folder directly under it. Only
   folders that already exist are offered.
 - **Check update**: shows the Claude Code version the host starts new
@@ -180,7 +185,7 @@ webhook automatically when polling starts.
   needs a confirm tap, and the folder list is read from the host on every
   open, so a forged button can't reach outside the workspace. Update
   always installs the newest release, never a version named in the button.
-  Open, close and update are written to the audit log like stack actions. The control token
+  Open, close, resume and update are written to the audit log like stack actions. The control token
   can open sessions on the host, so treat it like the Dockhand token.
 - **No Docker socket**: bot only talks to Dockhand API. Note that the
   Dockhand API token is still a powerful credential: it carries the

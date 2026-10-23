@@ -50,6 +50,13 @@ def test_close_session_posts_to_stop(client):
 
 
 @responses.activate
+def test_resume_session_posts_to_resume(client):
+    responses.post(f"{BASE}/sessions/dbd65fb7/resume", json={"ok": True})
+    client.resume_session("dbd65fb7")
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_version_returns_payload(client):
     body = {"installed": "2.1.305", "latest": "2.1.306", "channel": "latest"}
     responses.get(f"{BASE}/version", json=body)

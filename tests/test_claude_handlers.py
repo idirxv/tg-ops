@@ -68,7 +68,7 @@ def test_render_marks_retired_sessions_and_explains_them():
     text = render_sessions(True, [Session("a", "gone", "", Activity.RETIRED)])
     assert "⏸️ <b>gone</b>" in text
     assert "stopped by the host" in text
-    assert "claude attach &lt;id&gt;" in text
+    assert "tap ▶️ to resume it" in text
 
 
 def test_render_escapes_html():
@@ -121,6 +121,38 @@ async def test_confirmed_close_calls_host_and_rerenders(config):
     await on_claude_callback(update, _ctx(config, host))
     host.close_session.assert_called_once_with("dbd65fb7")
     assert "Session closed" in q.edit_message_text.await_args.args[0]
+
+
+async def test_resume_calls_host_and_rerenders(config):
+    host = _host()
+    update, q = _update("claude.resume|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.resume_session.assert_called_once_with("dbd65fb7")
+    assert q.edit_message_text.await_args_list[0].args[0].startswith("⏳")
+    assert q.edit_message_text.await_args_list[0].kwargs["reply_markup"] is None
+    text = q.edit_message_text.await_args.args[0]
+    assert "Session resumed" in text
+    # Back in the list with its process alive, it can be closed again.
+    kb = q.edit_message_text.await_args.kwargs["reply_markup"]
+    assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
+
+
+async def test_resume_of_running_session_reports_host_refusal(config):
+    host = _host()
+    host.resume_session.side_effect = ClaudeHostError("session is already running")
+    update, q = _update("claude.resume|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    assert "already running" in q.edit_message_text.await_args.args[0]
+
+
+async def test_resume_is_audit_logged(config, caplog):
+    update, q = _update("claude.resume|dbd65fb7")
+    q.from_user.id = 42
+    q.from_user.username = "alice"
+    with caplog.at_level("INFO", logger="bot.claude_handlers"):
+        await on_claude_callback(update, _ctx(config, _host()))
+    assert "resume session dbd65fb7 requested by user_id=42 (@alice)" in caplog.text
+    assert "Resumed session dbd65fb7" in caplog.text
 
 
 async def test_new_shows_folder_picker(config):

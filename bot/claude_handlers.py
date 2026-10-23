@@ -1,5 +1,5 @@
-"""Telegram handlers for the /claude panel: list, open and close Sessions, and
-Update Claude Code on the Claude Host."""
+"""Telegram handlers for the /claude panel: list, open, close and resume
+Sessions, and Update Claude Code on the Claude Host."""
 from __future__ import annotations
 
 import asyncio
@@ -43,7 +43,7 @@ def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") 
     if not sessions:
         lines.append("No open Claude sessions.")
     else:
-        lines.append("<b>Claude sessions</b> — tap one to close it.")
+        lines.append("<b>Claude sessions</b> — tap ⏹ to close one.")
         for s in sessions:
             icon = _ICONS[s.activity]
             folder = html.escape(s.folder) or "workspace root"
@@ -51,8 +51,7 @@ def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") 
         if any(s.activity is Activity.RETIRED for s in sessions):
             lines.append(
                 "⏸️ = stopped by the host while waiting for you. Its conversation "
-                "is kept: resume it on the host with "
-                "<code>claude attach &lt;id&gt;</code>."
+                "is kept: tap ▶️ to resume it."
             )
     return "\n".join(lines)
 
@@ -104,7 +103,9 @@ async def _confirm_close(
         return
     if session.activity is Activity.RETIRED:
         await _show_list(
-            query, context, "That session was already stopped by the host."
+            query,
+            context,
+            "That session was already stopped by the host: tap ▶️ to resume it.",
         )
         return
     await safe_edit(
@@ -152,6 +153,18 @@ async def _close_session(
     await asyncio.to_thread(_host(context).close_session, session_id)
     log.info("Closed session %s", session_id)
     await _show_list(query, context, "✅ Session closed.")
+
+
+async def _resume_session(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> None:
+    _audit(query, f"resume session {session_id}")
+    await safe_edit(query, f"⏳ Resuming <code>{session_id}</code>…", None)
+    await asyncio.to_thread(_host(context).resume_session, session_id)
+    log.info("Resumed session %s", session_id)
+    await _show_list(
+        query, context, "✅ Session resumed: answer it from the Claude app."
+    )
 
 
 async def _check_update(
@@ -240,6 +253,8 @@ async def on_claude_callback(
             await _confirm_close(query, context, arg)
         elif action is ClaudeAction.CONFIRM_CLOSE:
             await _close_session(query, context, arg)
+        elif action is ClaudeAction.RESUME:
+            await _resume_session(query, context, arg)
         elif action is ClaudeAction.CHECK_UPDATE:
             await _check_update(query, context)
         elif action is ClaudeAction.UPDATE:
