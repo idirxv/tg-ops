@@ -1,6 +1,6 @@
 # tg-ops
 
-A Telegram control panel for the home lab: start, stop and restart Docker Compose stacks, and list, open and close Claude Code sessions, from an authorized chat.
+A Telegram control panel for the home lab: start, stop and restart Docker Compose stacks, and list, open, close and resume Claude Code sessions, from an authorized chat.
 
 ## Language
 
@@ -13,7 +13,7 @@ The home-lab container where Claude Code runs and where sessions live. There is 
 _Avoid_: Claude bot, Claude Code bot
 
 **Session**:
-A Claude Code conversation running on the Claude Host, reachable from the Claude app. Telegram lists, opens and closes sessions but never takes part in the conversation.
+A Claude Code conversation running on the Claude Host, reachable from the Claude app. Telegram lists, opens, closes and resumes sessions but never takes part in the conversation.
 _Avoid_: Agent, chat, job
 
 **Open (a Session)**:
@@ -25,8 +25,12 @@ Stop a running Session's process while keeping its conversation, so it can be re
 _Avoid_: Delete, kill, remove
 
 **Retired (Session)**:
-A Session whose process the Claude Host stopped on its own: Claude Code retires a background Session that waits on its user while memory runs low. It stays listed and its conversation is kept, but it can no longer be Closed, only resumed on the host (`claude attach <id>`).
+A Session whose process the Claude Host stopped on its own: Claude Code retires a background Session that waits on its user while memory runs low. It stays listed and its conversation is kept, but it can no longer be Closed, only Resumed.
 _Avoid_: Dead, ghost, zombie
+
+**Resume (a Session)**:
+Restart the process of a Retired Session, on the Installed version, so its conversation can go on from the Claude app. Only a Retired Session can be Resumed; once it is, it can be Closed again.
+_Avoid_: Respawn, restart, reopen, attach
 
 **Installed version**:
 The Claude Code version the Claude Host starts new Sessions with. Running Sessions keep the version they started with until they are Closed and resumed.

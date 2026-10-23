@@ -33,6 +33,7 @@ class ClaudeAction(StrEnum):
     OPEN = "claude.open"  # opens a session in the folder it carries
     CLOSE = "claude.close"  # asks for confirmation
     CONFIRM_CLOSE = "claude.cclose"  # actually closes
+    RESUME = "claude.resume"  # restarts a Retired session's process
     CHECK_UPDATE = "claude.check"  # shows the Installed and latest versions
     # Updates to the newest release; it carries no version to pick.
     UPDATE = "claude.update"
@@ -51,7 +52,7 @@ def decode(data: str | None) -> tuple[ClaudeAction, str]:
         action = ClaudeAction(raw_action)
     except ValueError as exc:
         raise CallbackError(f"unknown action: {raw_action!r}") from exc
-    if action in (ClaudeAction.CLOSE, ClaudeAction.CONFIRM_CLOSE):
+    if action in (ClaudeAction.CLOSE, ClaudeAction.CONFIRM_CLOSE, ClaudeAction.RESUME):
         if not SESSION_ID.fullmatch(arg):
             raise CallbackError(f"invalid session id: {arg!r}")
     elif action is not ClaudeAction.OPEN and arg:
@@ -74,9 +75,10 @@ def _nav_row() -> list[InlineKeyboardButton]:
 def sessions_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
     # A retired session has no process left for `claude stop` to close.
     rows = [
-        [_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)]
+        [_button(f"▶️ {s.name}", ClaudeAction.RESUME, s.id)]
+        if s.activity is Activity.RETIRED
+        else [_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)]
         for s in sessions
-        if s.activity is not Activity.RETIRED
     ]
     rows.append(_nav_row())
     rows.append([_button("🔄 Check update", ClaudeAction.CHECK_UPDATE)])

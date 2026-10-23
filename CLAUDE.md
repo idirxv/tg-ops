@@ -75,8 +75,10 @@ Key structural facts that span files:
   "open a session in folder X": `claude_keyboards.decode` only checks the shape.
   A session's `Activity` comes from the payload's `status`: `claude agents --json` gives one
   only to sessions with a live process, so a missing `status` means **Retired** (stopped by
-  the host under memory pressure). Retired sessions get no Close button — `claude stop`
-  fails on them.
+  the host under memory pressure). Retired sessions get a Resume button instead of Close
+  (`claude stop` fails on them): `POST /sessions/<id>/resume` runs `claude respawn`, and
+  the service refuses it for a session with a live process, which it would restart
+  mid-turn. A resumed session is live again, so Close works on it.
   **Check update** (`GET /version`) reports the Installed version and the newest release on
   the host's channel (`latest: null` when that lookup fails); **Update** (`POST /update`)
   runs `claude update` and carries no version in its callback data, so it can only ever go

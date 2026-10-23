@@ -30,6 +30,8 @@ class ClaudeHostClient:
     LIST_TIMEOUT = (5, 15)
     OPEN_TIMEOUT = (5, 75)
     CLOSE_TIMEOUT = (5, 45)
+    # Resuming waits on `claude respawn`, which the service gives up on after 60s.
+    RESUME_TIMEOUT = (5, 75)
     # Checking runs `claude --version` and a release lookup capped at 10s;
     # updating waits on `claude update`, which the service gives up on after 150s.
     VERSION_TIMEOUT = (5, 30)
@@ -60,6 +62,14 @@ class ClaudeHostClient:
     def close_session(self, session_id: str) -> None:
         self._request(
             "POST", f"/sessions/{quote(session_id, safe='')}/stop", self.CLOSE_TIMEOUT
+        )
+
+    def resume_session(self, session_id: str) -> None:
+        """Restart the process of a Retired session."""
+        self._request(
+            "POST",
+            f"/sessions/{quote(session_id, safe='')}/resume",
+            self.RESUME_TIMEOUT,
         )
 
     def version(self) -> Any:

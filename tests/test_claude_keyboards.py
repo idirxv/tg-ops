@@ -24,6 +24,7 @@ from bot.sessions import Activity, Session
         (ClaudeAction.OPEN, "petuka-db"),
         (ClaudeAction.CLOSE, "dbd65fb7"),
         (ClaudeAction.CONFIRM_CLOSE, "dbd65fb7"),
+        (ClaudeAction.RESUME, "dbd65fb7"),
         (ClaudeAction.CHECK_UPDATE, ""),
         (ClaudeAction.UPDATE, ""),
     ],
@@ -45,6 +46,8 @@ def test_roundtrip(action, arg):
         "claude.close|--all",
         "claude.cclose|DBD65FB7",
         "claude.cclose|dbd65fb7;ls",
+        "claude.resume|",
+        "claude.resume|--all",
         "claude.update|2.1.306",  # always installs the newest, never a pick
         "claude.check|x",
     ],
@@ -58,15 +61,18 @@ def test_folder_may_contain_the_separator():
     assert decode("claude.open|a|b") == (ClaudeAction.OPEN, "a|b")
 
 
-def test_sessions_keyboard_has_close_rows_nav_and_check_update():
+def test_sessions_keyboard_has_session_rows_nav_and_check_update():
     kb = sessions_keyboard(
         [
             Session("dbd65fb7", "one", "", Activity.IDLE),
             Session("ab12cd34", "gone", "", Activity.RETIRED),
         ]
     )
-    assert len(kb.inline_keyboard) == 3  # the retired session has no close row
+    assert len(kb.inline_keyboard) == 4
     assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
+    # A retired session has no process to close: it offers Resume instead.
+    assert kb.inline_keyboard[1][0].callback_data == "claude.resume|ab12cd34"
+    assert kb.inline_keyboard[1][0].text == "▶️ gone"
     nav = [b.callback_data for b in kb.inline_keyboard[-2]]
     assert nav == ["claude.new|", "claude.list|", "claude.exit|"]
     assert [b.callback_data for b in kb.inline_keyboard[-1]] == ["claude.check|"]
