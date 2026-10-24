@@ -108,13 +108,15 @@ Bad or missing config makes container exit immediately with clear error message.
 conversation itself stays in the Claude app, where each session appears
 through Remote Control.
 
-- **List**: one button per session, `⚙️` working or `💤` idle, with its folder.
-  Tap one to close it (asks first; the conversation is kept and can be
-  resumed from the Claude app).
-- **Resume**: a session the host stopped on its own while it waited for you
-  (`⏸️`, Claude Code does this under memory pressure) gets a `▶️` button
-  instead. Tapping it restarts the session on the installed version, keeping
-  its conversation; it can then be answered from the Claude app and closed.
+- **List**: one button per running session, `⚙️` working or `💤` idle, with
+  its folder. Tap one to close it (asks first; the conversation is kept and
+  can be resumed from the Claude app).
+- **Resume**: a session whose process is gone without being closed (Claude
+  Code retiring it while memory runs low, the host restarting, a reboot) is
+  **Retired**. When any are, a `⏸️ Sessions Retired (N)` button opens a
+  screen listing them, each with a `▶️` button. Tapping it restarts the
+  session on the installed version, keeping its conversation; it can then be
+  answered from the Claude app and closed.
 - **New**: pick the workspace root or a folder directly under it. Only
   folders that already exist are offered.
 - **Check update**: shows the Claude Code version the host starts new

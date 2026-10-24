@@ -16,7 +16,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.claude_version import VersionCheck
 from bot.keyboards import SEP, CallbackError
-from bot.sessions import SESSION_ID, Activity, Session
+from bot.sessions import SESSION_ID, Session
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class ClaudeAction(StrEnum):
     OPEN = "claude.open"  # opens a session in the folder it carries
     CLOSE = "claude.close"  # asks for confirmation
     CONFIRM_CLOSE = "claude.cclose"  # actually closes
+    RETIRED = "claude.retired"  # lists the Retired sessions
     RESUME = "claude.resume"  # restarts a Retired session's process
     CHECK_UPDATE = "claude.check"  # shows the Installed and latest versions
     # Updates to the newest release; it carries no version to pick.
@@ -73,15 +74,27 @@ def _nav_row() -> list[InlineKeyboardButton]:
 
 
 def sessions_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
-    # A retired session has no process left for `claude stop` to close.
     rows = [
-        [_button(f"▶️ {s.name}", ClaudeAction.RESUME, s.id)]
-        if s.activity is Activity.RETIRED
-        else [_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)]
+        [_button(f"⏹ {s.name}", ClaudeAction.CLOSE, s.id)]
         for s in sessions
+        if not s.retired
     ]
+    retired = sum(s.retired for s in sessions)
+    if retired:
+        rows.append([_button(f"⏸️ Sessions Retired ({retired})", ClaudeAction.RETIRED)])
     rows.append(_nav_row())
     rows.append([_button("🔄 Check update", ClaudeAction.CHECK_UPDATE)])
+    return InlineKeyboardMarkup(rows)
+
+
+def retired_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
+    # Resume, not Close: a retired session has no process for `claude stop`.
+    rows = [
+        [_button(f"▶️ {s.name}", ClaudeAction.RESUME, s.id)]
+        for s in sessions
+        if s.retired
+    ]
+    rows.append([_button("⬅️ Back", ClaudeAction.LIST)])
     return InlineKeyboardMarkup(rows)
 
 

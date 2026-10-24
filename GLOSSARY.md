@@ -25,12 +25,16 @@ Stop a running Session's process while keeping its conversation, so it can be re
 _Avoid_: Delete, kill, remove
 
 **Retired (Session)**:
-A Session whose process the Claude Host stopped on its own: Claude Code retires a background Session that waits on its user while memory runs low. It stays listed and its conversation is kept, but it can no longer be Closed, only Resumed.
+A Session whose process is gone without it being Closed, whatever the cause: Claude Code retiring it while memory runs low, the Claude Host stopping or restarting, or the server rebooting. It stays listed and its conversation is kept, but it can no longer be Closed, only Resumed or Discarded.
 _Avoid_: Dead, ghost, zombie
 
 **Resume (a Session)**:
 Restart the process of a Retired Session, on the Installed version, so its conversation can go on from the Claude app. Only a Retired Session can be Resumed; once it is, it can be Closed again.
 _Avoid_: Respawn, restart, reopen, attach
+
+**Discard (a Session)**:
+Delete a Retired Session for good, conversation included. Only a Retired Session can be Discarded; a running one can only be Closed.
+_Avoid_: Delete, remove, purge
 
 **Installed version**:
 The Claude Code version the Claude Host starts new Sessions with. Running Sessions keep the version they started with until they are Closed and resumed.
