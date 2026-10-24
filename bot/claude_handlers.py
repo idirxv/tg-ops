@@ -252,7 +252,7 @@ async def cmd_claude(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         logged_in, sessions = await _fetch_sessions(context)
     except (ClaudeHostError, ValueError) as exc:
         log.error("/claude failed: %s", exc)
-        await message.reply_text(f"⚠️ {exc}")
+        await message.reply_text(f"⚠️ {exc}", reply_markup=error_keyboard())
         return
     await message.reply_text(
         render_sessions(logged_in, sessions),

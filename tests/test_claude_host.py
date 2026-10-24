@@ -3,8 +3,19 @@ import json
 import pytest
 import requests
 import responses
+from urllib3.exceptions import (
+    ConnectTimeoutError,
+    MaxRetryError,
+    NewConnectionError,
+    ProtocolError,
+)
 
-from bot.claude_host import ClaudeHostClient, ClaudeHostError, ClaudeHostTimeout
+from bot.claude_host import (
+    ClaudeHostClient,
+    ClaudeHostError,
+    ClaudeHostStopped,
+    ClaudeHostTimeout,
+)
 
 BASE = "http://claude-code:8080"
 
@@ -106,10 +117,40 @@ def test_read_timeout_is_distinguished_from_unreachable(client):
         client.open_session()
 
 
+def _refused():
+    # The shape requests gives a refused connection.
+    reason = NewConnectionError(None, "Connection refused to secret-host")
+    return requests.ConnectionError(MaxRetryError(None, "/sessions", reason))
+
+
 @responses.activate
-def test_connection_failure_does_not_leak_details(client):
-    responses.get(f"{BASE}/sessions", body=requests.ConnectionError("secret-host"))
-    with pytest.raises(ClaudeHostError, match="unreachable") as exc:
+def test_refused_connection_means_the_host_is_stopped(client):
+    responses.get(f"{BASE}/sessions", body=_refused())
+    with pytest.raises(ClaudeHostStopped) as exc:
         client.list_sessions()
-    assert not isinstance(exc.value, ClaudeHostTimeout)
+    assert str(exc.value) == "Claude Host is stopped — start its stack from /docker"
+    assert "secret-host" not in str(exc.value)
+
+
+@responses.activate
+def test_connection_dropped_mid_request_is_not_reported_as_stopped(client):
+    # The host was reached, so the action failed: it is not stopped.
+    dropped = requests.ConnectionError(
+        ProtocolError("Connection aborted.", ConnectionResetError())
+    )
+    responses.post(f"{BASE}/update", body=dropped)
+    with pytest.raises(ClaudeHostError, match=r"unreachable \(ConnectionError\)") as e:
+        client.update()
+    assert not isinstance(e.value, ClaudeHostStopped)
+
+
+@responses.activate
+def test_connect_timeout_is_not_reported_as_stopped(client):
+    timeout = requests.ConnectTimeout(
+        MaxRetryError(None, "/sessions", ConnectTimeoutError("secret-host"))
+    )
+    responses.get(f"{BASE}/sessions", body=timeout)
+    with pytest.raises(ClaudeHostError, match=r"unreachable \(ConnectTimeout\)") as exc:
+        client.list_sessions()
+    assert not isinstance(exc.value, ClaudeHostStopped | ClaudeHostTimeout)
     assert "secret-host" not in str(exc.value)
