@@ -1,6 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from bot.claude_handlers import on_claude_callback, render_sessions, render_version
+from bot.claude_handlers import (
+    on_claude_callback,
+    render_retired,
+    render_sessions,
+    render_version,
+)
 from bot.claude_host import ClaudeHostError, ClaudeHostTimeout
 from bot.claude_version import VersionCheck
 from bot.sessions import Activity, Session
@@ -10,6 +15,11 @@ SESSIONS_PAYLOAD = {
     "sessions": [
         {"id": "dbd65fb7", "name": "greeting", "folder": "petuka-db", "status": "idle"}
     ],
+}
+# The same session once its process is gone: no status.
+RETIRED_PAYLOAD = {
+    "logged_in": True,
+    "sessions": [{"id": "dbd65fb7", "name": "greeting", "folder": "petuka-db"}],
 }
 
 
@@ -42,7 +52,7 @@ def _host(payload=SESSIONS_PAYLOAD):
 
 
 def test_render_empty():
-    assert "No open Claude sessions" in render_sessions(True, [])
+    assert "No active Claude sessions." in render_sessions(True, [])
 
 
 def test_render_flags_logged_out_host():
@@ -61,14 +71,45 @@ def test_render_shows_state_folder_and_notice():
     assert text.startswith("✅ done")
     assert "⚙️ <b>busy one</b> · <code>workspace root</code>" in text
     assert "💤 <b>idle one</b> · <code>alpha</code>" in text
-    assert "stopped by the host" not in text
 
 
-def test_render_marks_retired_sessions_and_explains_them():
-    text = render_sessions(True, [Session("a", "gone", "", Activity.RETIRED)])
-    assert "⏸️ <b>gone</b>" in text
-    assert "stopped by the host" in text
-    assert "tap ▶️ to resume it" in text
+def test_render_leaves_retired_sessions_off_the_main_screen():
+    text = render_sessions(
+        True,
+        [
+            Session("a", "live", "", Activity.IDLE),
+            Session("b", "gone", "", Activity.RETIRED),
+        ],
+    )
+    assert "live" in text
+    assert "gone" not in text
+    assert "⏸️" not in text
+    assert "retired" not in text.lower()
+
+
+def test_render_with_only_retired_sessions_says_none_are_active():
+    text = render_sessions(True, [Session("b", "gone", "", Activity.RETIRED)])
+    assert "No active Claude sessions." in text
+    assert "gone" not in text
+
+
+def test_render_retired_lists_retired_sessions_only():
+    text = render_retired(
+        [
+            Session("a", "live", "", Activity.IDLE),
+            Session("b", "gone", "alpha", Activity.RETIRED),
+        ]
+    )
+    assert "⏸️ <b>gone</b> · <code>alpha</code>" in text
+    assert "live" not in text
+    assert "tap ▶️ to resume" in text
+    # Wording must not assume why the process is gone.
+    assert "memory" not in text
+    assert "by the host" not in text
+
+
+def test_render_retired_when_none_are():
+    assert "No retired Claude sessions." in render_retired([])
 
 
 def test_render_escapes_html():
@@ -107,12 +148,15 @@ async def test_close_of_vanished_session_falls_back_to_list(config):
 
 
 async def test_close_of_retired_session_falls_back_to_list(config):
-    entry = SESSIONS_PAYLOAD["sessions"][0] | {"status": None}
-    host = _host({"logged_in": True, "sessions": [entry]})
+    host = _host(RETIRED_PAYLOAD)
     update, q = _update("claude.close|dbd65fb7")
     await on_claude_callback(update, _ctx(config, host))
     host.close_session.assert_not_called()
-    assert "already stopped by the host" in q.edit_message_text.await_args.args[0]
+    call = q.edit_message_text.await_args
+    assert "no longer running" in call.args[0]
+    assert "by the host" not in call.args[0]
+    kb = call.kwargs["reply_markup"]
+    assert kb.inline_keyboard[0][0].callback_data == "claude.retired|"
 
 
 async def test_confirmed_close_calls_host_and_rerenders(config):
@@ -123,22 +167,74 @@ async def test_confirmed_close_calls_host_and_rerenders(config):
     assert "Session closed" in q.edit_message_text.await_args.args[0]
 
 
-async def test_resume_calls_host_and_rerenders(config):
+async def test_retired_screen_lists_retired_sessions_with_resume_and_back(config):
+    host = _host(
+        {
+            "logged_in": True,
+            "sessions": [
+                {"id": "dbd65fb7", "name": "live", "status": "idle"},
+                {"id": "ab12cd34", "name": "gone", "folder": "alpha"},
+            ],
+        }
+    )
+    update, q = _update("claude.retired|")
+    await on_claude_callback(update, _ctx(config, host))
+    call = q.edit_message_text.await_args
+    assert "⏸️ <b>gone</b> · <code>alpha</code>" in call.args[0]
+    assert "live" not in call.args[0]
+    data = [row[0].callback_data for row in call.kwargs["reply_markup"].inline_keyboard]
+    assert data == ["claude.resume|ab12cd34", "claude.list|"]
+
+
+async def test_stale_retired_screen_button_shows_none_left(config):
+    update, q = _update("claude.retired|")
+    await on_claude_callback(update, _ctx(config, _host()))
+    call = q.edit_message_text.await_args
+    assert "No retired Claude sessions." in call.args[0]
+    data = [row[0].callback_data for row in call.kwargs["reply_markup"].inline_keyboard]
+    assert data == ["claude.list|"]
+
+
+async def test_resume_returns_to_main_screen_with_session_running(config):
     host = _host()
+    host.list_sessions.side_effect = [RETIRED_PAYLOAD, SESSIONS_PAYLOAD]
     update, q = _update("claude.resume|dbd65fb7")
     await on_claude_callback(update, _ctx(config, host))
     host.resume_session.assert_called_once_with("dbd65fb7")
     assert q.edit_message_text.await_args_list[0].args[0].startswith("⏳")
     assert q.edit_message_text.await_args_list[0].kwargs["reply_markup"] is None
     text = q.edit_message_text.await_args.args[0]
-    assert "Session resumed" in text
-    # Back in the list with its process alive, it can be closed again.
+    assert text.startswith("✅ Session resumed")
+    assert "<b>greeting</b>" in text
+    # Back on the main screen with its process alive, it can be closed again.
     kb = q.edit_message_text.await_args.kwargs["reply_markup"]
     assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
 
 
-async def test_resume_of_running_session_reports_host_refusal(config):
+async def test_resume_of_session_no_longer_retired_refreshes_main_screen(config):
     host = _host()
+    update, q = _update("claude.resume|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.resume_session.assert_not_called()
+    call = q.edit_message_text.await_args
+    assert "already running" in call.args[0]
+    assert call.kwargs["reply_markup"].inline_keyboard[0][0].callback_data == (
+        "claude.close|dbd65fb7"
+    )
+
+
+async def test_resume_of_vanished_session_refreshes_main_screen(config):
+    host = _host({"logged_in": True, "sessions": []})
+    update, q = _update("claude.resume|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.resume_session.assert_not_called()
+    call = q.edit_message_text.await_args
+    assert "no longer exists" in call.args[0]
+    assert "No active Claude sessions." in call.args[0]
+
+
+async def test_resume_reports_host_refusal(config):
+    host = _host(RETIRED_PAYLOAD)
     host.resume_session.side_effect = ClaudeHostError("session is already running")
     update, q = _update("claude.resume|dbd65fb7")
     await on_claude_callback(update, _ctx(config, host))
@@ -150,7 +246,7 @@ async def test_resume_is_audit_logged(config, caplog):
     q.from_user.id = 42
     q.from_user.username = "alice"
     with caplog.at_level("INFO", logger="bot.claude_handlers"):
-        await on_claude_callback(update, _ctx(config, _host()))
+        await on_claude_callback(update, _ctx(config, _host(RETIRED_PAYLOAD)))
     assert "resume session dbd65fb7 requested by user_id=42 (@alice)" in caplog.text
     assert "Resumed session dbd65fb7" in caplog.text
 

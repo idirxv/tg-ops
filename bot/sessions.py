@@ -14,8 +14,7 @@ SESSION_ID = re.compile(r"[0-9a-f]{8}")
 class Activity(Enum):
     BUSY = "busy"  # working on a turn
     IDLE = "idle"  # running, waiting for its user
-    # The Claude Host stopped its process on its own (Claude Code retires
-    # background sessions waiting on input under memory pressure). The
+    # Its process is gone without it being Closed, whatever the cause. The
     # conversation is kept, but `claude stop` no longer works on it.
     RETIRED = "retired"
 
@@ -27,6 +26,10 @@ class Session:
     # Relative to the workspace; empty for the workspace root.
     folder: str
     activity: Activity
+
+    @property
+    def retired(self) -> bool:
+        return self.activity is Activity.RETIRED
 
 
 def _activity(status: Any) -> Activity:

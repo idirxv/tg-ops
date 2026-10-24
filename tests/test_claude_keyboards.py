@@ -6,6 +6,7 @@ from bot.claude_keyboards import (
     decode,
     encode,
     folder_keyboard,
+    retired_keyboard,
     sessions_keyboard,
     version_keyboard,
 )
@@ -25,6 +26,7 @@ from bot.sessions import Activity, Session
         (ClaudeAction.CLOSE, "dbd65fb7"),
         (ClaudeAction.CONFIRM_CLOSE, "dbd65fb7"),
         (ClaudeAction.RESUME, "dbd65fb7"),
+        (ClaudeAction.RETIRED, ""),
         (ClaudeAction.CHECK_UPDATE, ""),
         (ClaudeAction.UPDATE, ""),
     ],
@@ -50,6 +52,7 @@ def test_roundtrip(action, arg):
         "claude.resume|--all",
         "claude.update|2.1.306",  # always installs the newest, never a pick
         "claude.check|x",
+        "claude.retired|dbd65fb7",
     ],
 )
 def test_decode_rejects_forged_data(data):
@@ -61,21 +64,56 @@ def test_folder_may_contain_the_separator():
     assert decode("claude.open|a|b") == (ClaudeAction.OPEN, "a|b")
 
 
-def test_sessions_keyboard_has_session_rows_nav_and_check_update():
+def test_sessions_keyboard_lists_running_sessions_only():
     kb = sessions_keyboard(
         [
             Session("dbd65fb7", "one", "", Activity.IDLE),
             Session("ab12cd34", "gone", "", Activity.RETIRED),
+            Session("ef56ab78", "two", "", Activity.BUSY),
         ]
     )
-    assert len(kb.inline_keyboard) == 4
-    assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
-    # A retired session has no process to close: it offers Resume instead.
-    assert kb.inline_keyboard[1][0].callback_data == "claude.resume|ab12cd34"
-    assert kb.inline_keyboard[1][0].text == "▶️ gone"
-    nav = [b.callback_data for b in kb.inline_keyboard[-2]]
-    assert nav == ["claude.new|", "claude.list|", "claude.exit|"]
-    assert [b.callback_data for b in kb.inline_keyboard[-1]] == ["claude.check|"]
+    data = [[b.callback_data for b in row] for row in kb.inline_keyboard]
+    assert data == [
+        ["claude.close|dbd65fb7"],
+        ["claude.close|ef56ab78"],
+        ["claude.retired|"],
+        ["claude.new|", "claude.list|", "claude.exit|"],
+        ["claude.check|"],
+    ]
+    assert kb.inline_keyboard[2][0].text == "⏸️ Sessions Retired (1)"
+
+
+def test_sessions_keyboard_counts_retired_sessions():
+    kb = sessions_keyboard(
+        [
+            Session("dbd65fb7", "a", "", Activity.RETIRED),
+            Session("ab12cd34", "b", "", Activity.RETIRED),
+        ]
+    )
+    assert kb.inline_keyboard[0][0].text == "⏸️ Sessions Retired (2)"
+
+
+def test_sessions_keyboard_hides_retired_button_when_none_are():
+    kb = sessions_keyboard([Session("dbd65fb7", "one", "", Activity.IDLE)])
+    data = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert "claude.retired|" not in data
+
+
+def test_retired_keyboard_offers_resume_per_session_and_back():
+    kb = retired_keyboard(
+        [
+            Session("dbd65fb7", "one", "", Activity.RETIRED),
+            Session("ab12cd34", "two", "", Activity.RETIRED),
+        ]
+    )
+    data = [[b.callback_data for b in row] for row in kb.inline_keyboard]
+    assert data == [
+        ["claude.resume|dbd65fb7"],
+        ["claude.resume|ab12cd34"],
+        ["claude.list|"],
+    ]
+    assert kb.inline_keyboard[0][0].text == "▶️ one"
+    assert kb.inline_keyboard[-1][0].text == "⬅️ Back"
 
 
 def test_folder_keyboard_leads_with_root_and_skips_oversized_names():

@@ -17,6 +17,7 @@ from bot.claude_keyboards import (
     decode,
     error_keyboard,
     folder_keyboard,
+    retired_keyboard,
     sessions_keyboard,
     version_keyboard,
 )
@@ -34,25 +35,38 @@ def _host(context: ContextTypes.DEFAULT_TYPE) -> ClaudeHostClient:
     return context.bot_data["claude_host"]
 
 
+def _session_line(session: Session) -> str:
+    folder = html.escape(session.folder) or "workspace root"
+    return (
+        f"{_ICONS[session.activity]} <b>{html.escape(session.name)}</b> · "
+        f"<code>{folder}</code>"
+    )
+
+
 def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") -> str:
     lines = [notice] if notice else []
     if not logged_in:
         lines.append(
             "⚠️ Claude is not logged in on the host — log in from its terminal."
         )
-    if not sessions:
-        lines.append("No open Claude sessions.")
+    running = [s for s in sessions if not s.retired]
+    if not running:
+        lines.append("No active Claude sessions.")
     else:
         lines.append("<b>Claude sessions</b> — tap ⏹ to close one.")
-        for s in sessions:
-            icon = _ICONS[s.activity]
-            folder = html.escape(s.folder) or "workspace root"
-            lines.append(f"{icon} <b>{html.escape(s.name)}</b> · <code>{folder}</code>")
-        if any(s.activity is Activity.RETIRED for s in sessions):
-            lines.append(
-                "⏸️ = stopped by the host while waiting for you. Its conversation "
-                "is kept: tap ▶️ to resume it."
-            )
+        lines.extend(_session_line(s) for s in running)
+    return "\n".join(lines)
+
+
+def render_retired(sessions: list[Session]) -> str:
+    retired = [s for s in sessions if s.retired]
+    if not retired:
+        return "No retired Claude sessions."
+    lines = [
+        "<b>Retired sessions</b> — no longer running, but their conversation "
+        "is kept: tap ▶️ to resume one."
+    ]
+    lines.extend(_session_line(s) for s in retired)
     return "\n".join(lines)
 
 
@@ -86,6 +100,13 @@ async def _show_list(
     )
 
 
+async def _show_retired(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    _, sessions = await _fetch_sessions(context)
+    await safe_edit(query, render_retired(sessions), retired_keyboard(sessions))
+
+
 async def _show_folders(
     query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -93,19 +114,25 @@ async def _show_folders(
     await safe_edit(query, "Open a session in which folder?", folder_keyboard(folders))
 
 
+async def _find_session(
+    context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> Session | None:
+    _, sessions = await _fetch_sessions(context)
+    return next((s for s in sessions if s.id == session_id), None)
+
+
 async def _confirm_close(
     query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, session_id: str
 ) -> None:
-    _, sessions = await _fetch_sessions(context)
-    session = next((s for s in sessions if s.id == session_id), None)
+    session = await _find_session(context, session_id)
     if session is None:
         await _show_list(query, context, "That session is already closed.")
         return
-    if session.activity is Activity.RETIRED:
+    if session.retired:
         await _show_list(
             query,
             context,
-            "That session was already stopped by the host: tap ▶️ to resume it.",
+            "That session is no longer running: resume it from ⏸️ Sessions Retired.",
         )
         return
     await safe_edit(
@@ -158,6 +185,15 @@ async def _close_session(
 async def _resume_session(
     query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, session_id: str
 ) -> None:
+    # A button on a stale Retired screen: refresh rather than let the host
+    # refuse it.
+    session = await _find_session(context, session_id)
+    if session is None:
+        await _show_list(query, context, "That session no longer exists.")
+        return
+    if not session.retired:
+        await _show_list(query, context, "That session is already running.")
+        return
     _audit(query, f"resume session {session_id}")
     await safe_edit(query, f"⏳ Resuming <code>{session_id}</code>…", None)
     await asyncio.to_thread(_host(context).resume_session, session_id)
@@ -197,7 +233,7 @@ async def _update_claude(
         )
     logged_in, sessions = await _fetch_sessions(context)
     # Retired sessions have no process left: they resume on the new version.
-    running = sum(s.activity is not Activity.RETIRED for s in sessions)
+    running = sum(not s.retired for s in sessions)
     if result.changed and running:
         keep = "session keeps" if running == 1 else "sessions keep"
         notice += (
@@ -253,6 +289,8 @@ async def on_claude_callback(
             await _confirm_close(query, context, arg)
         elif action is ClaudeAction.CONFIRM_CLOSE:
             await _close_session(query, context, arg)
+        elif action is ClaudeAction.RETIRED:
+            await _show_retired(query, context)
         elif action is ClaudeAction.RESUME:
             await _resume_session(query, context, arg)
         elif action is ClaudeAction.CHECK_UPDATE:
