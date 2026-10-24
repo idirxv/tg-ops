@@ -1,6 +1,6 @@
 # tg-ops
 
-A Telegram control panel for the home lab: start, stop and restart Docker Compose stacks, and list, open, close and resume Claude Code sessions, from an authorized chat.
+A Telegram control panel for the home lab: start, stop and restart Docker Compose stacks, and list, open, close, resume and discard Claude Code sessions, from an authorized chat.
 
 ## Language
 
@@ -13,7 +13,7 @@ The home-lab container where Claude Code runs and where sessions live. There is 
 _Avoid_: Claude bot, Claude Code bot
 
 **Session**:
-A Claude Code conversation running on the Claude Host, reachable from the Claude app. Telegram lists, opens, closes and resumes sessions but never takes part in the conversation.
+A Claude Code conversation running on the Claude Host, reachable from the Claude app. Telegram lists, opens, closes, resumes and discards sessions but never takes part in the conversation.
 _Avoid_: Agent, chat, job
 
 **Open (a Session)**:

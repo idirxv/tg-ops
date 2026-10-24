@@ -1,5 +1,5 @@
-"""Telegram handlers for the /claude panel: list, open, close and resume
-Sessions, and Update Claude Code on the Claude Host."""
+"""Telegram handlers for the /claude panel: list, open, close, resume and
+discard Sessions, and Update Claude Code on the Claude Host."""
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +14,7 @@ from bot.claude_host import ClaudeHostClient, ClaudeHostError, ClaudeHostTimeout
 from bot.claude_keyboards import (
     ClaudeAction,
     confirm_close_keyboard,
+    confirm_discard_keyboard,
     decode,
     error_keyboard,
     folder_keyboard,
@@ -58,14 +59,16 @@ def render_sessions(logged_in: bool, sessions: list[Session], notice: str = "") 
     return "\n".join(lines)
 
 
-def render_retired(sessions: list[Session]) -> str:
+def render_retired(sessions: list[Session], notice: str = "") -> str:
+    lines = [notice] if notice else []
     retired = [s for s in sessions if s.retired]
     if not retired:
-        return "No retired Claude sessions."
-    lines = [
+        lines.append("No retired Claude sessions.")
+        return "\n".join(lines)
+    lines.append(
         "<b>Retired sessions</b> — no longer running, but their conversation "
-        "is kept: tap ▶️ to resume one."
-    ]
+        "is kept: tap ▶️ to resume one, or 🗑 to discard it."
+    )
     lines.extend(_session_line(s) for s in retired)
     return "\n".join(lines)
 
@@ -105,6 +108,19 @@ async def _show_retired(
 ) -> None:
     _, sessions = await _fetch_sessions(context)
     await safe_edit(query, render_retired(sessions), retired_keyboard(sessions))
+
+
+async def _show_retired_or_list(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, notice: str
+) -> None:
+    """The Retired screen while any Session is Retired, else the main one."""
+    logged_in, sessions = await _fetch_sessions(context)
+    if any(s.retired for s in sessions):
+        text, keyboard = render_retired(sessions, notice), retired_keyboard(sessions)
+    else:
+        text = render_sessions(logged_in, sessions, notice)
+        keyboard = sessions_keyboard(sessions)
+    await safe_edit(query, text, keyboard)
 
 
 async def _show_folders(
@@ -203,6 +219,36 @@ async def _resume_session(
     )
 
 
+async def _confirm_discard(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> None:
+    session = await _find_session(context, session_id)
+    if session is None:
+        await _show_retired_or_list(query, context, "That session no longer exists.")
+        return
+    if not session.retired:
+        await _show_list(query, context, "That session is running: close it instead.")
+        return
+    await safe_edit(
+        query,
+        f"Discard <b>{html.escape(session.name)}</b>? Its conversation is deleted "
+        "for good.",
+        confirm_discard_keyboard(session_id),
+    )
+
+
+async def _discard_session(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> None:
+    _audit(query, f"discard session {session_id}")
+    await safe_edit(query, f"⏳ Discarding <code>{session_id}</code>…", None)
+    # The host refuses a session with a live process, so a stale confirm
+    # button can't delete one that was resumed meanwhile.
+    await asyncio.to_thread(_host(context).discard_session, session_id)
+    log.info("Discarded session %s", session_id)
+    await _show_retired_or_list(query, context, "🗑 Session discarded.")
+
+
 async def _check_update(
     query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -293,6 +339,10 @@ async def on_claude_callback(
             await _show_retired(query, context)
         elif action is ClaudeAction.RESUME:
             await _resume_session(query, context, arg)
+        elif action is ClaudeAction.DISCARD:
+            await _confirm_discard(query, context, arg)
+        elif action is ClaudeAction.CONFIRM_DISCARD:
+            await _discard_session(query, context, arg)
         elif action is ClaudeAction.CHECK_UPDATE:
             await _check_update(query, context)
         elif action is ClaudeAction.UPDATE:

@@ -27,8 +27,8 @@ Status legend:
 - `/ping` replies `Pong` — liveness check.
 - `/claude` (optional, see [Claude sessions](#claude-sessions)) lists the
   Claude Code sessions running on the Claude Host, with buttons to close
-  one, resume one the host stopped, open a new one in a chosen folder, or
-  update Claude Code.
+  one, resume or discard one the host stopped, open a new one in a chosen
+  folder, or update Claude Code.
 - `/docker` shows one button per allowlisted stack with status dot.
   Tapping stack opens detail view (per-container states) with actions
   valid for its state: **Start** when stopped, **Stop / Restart** when
@@ -104,9 +104,9 @@ Bad or missing config makes container exit immediately with clear error message.
 ## Claude sessions
 
 `/claude` manages Claude Code **sessions** on the Claude Host (the
-`claude-code` container). The bot lists, opens, closes and resumes them; the
-conversation itself stays in the Claude app, where each session appears
-through Remote Control.
+`claude-code` container). The bot lists, opens, closes, resumes and
+discards them; the conversation itself stays in the Claude app, where each
+session appears through Remote Control.
 
 - **List**: one button per running session, `⚙️` working or `💤` idle, with
   its folder. Tap one to close it (asks first; the conversation is kept and
@@ -117,6 +117,10 @@ through Remote Control.
   screen listing them, each with a `▶️` button. Tapping it restarts the
   session on the installed version, keeping its conversation; it can then be
   answered from the Claude app and closed.
+- **Discard**: the `🗑` next to a Retired session deletes it for good,
+  conversation included (asks first). The screen stays on the Retired list
+  while any are left, otherwise it goes back to the main one. A running
+  session can't be discarded: close it instead.
 - **New**: pick the workspace root or a folder directly under it. Only
   folders that already exist are offered.
 - **Check update**: shows the Claude Code version the host starts new
@@ -184,10 +188,11 @@ webhook automatically when polling starts.
   Check runs server-side on every button press — inline button data is
   client-forgeable, never trusted.
 - **Claude sessions**: `/claude` follows the same chat allowlist. Closing
-  needs a confirm tap, and the folder list is read from the host on every
-  open, so a forged button can't reach outside the workspace. Update
-  always installs the newest release, never a version named in the button.
-  Open, close, resume and update are written to the audit log like stack actions. The control token
+  and discarding need a confirm tap, and the folder list is read from the
+  host on every open, so a forged button can't reach outside the workspace.
+  Update always installs the newest release, never a version named in the
+  button.
+  Open, close, resume, discard and update are written to the audit log like stack actions. The control token
   can open sessions on the host, so treat it like the Dockhand token.
 - **No Docker socket**: bot only talks to Dockhand API. Note that the
   Dockhand API token is still a powerful credential: it carries the
