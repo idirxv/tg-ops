@@ -39,8 +39,9 @@ class ClaudeHostClient:
     LIST_TIMEOUT = (5, 15)
     OPEN_TIMEOUT = (5, 75)
     CLOSE_TIMEOUT = (5, 45)
-    # Resuming waits on `claude respawn`, which the service gives up on after 60s.
-    RESUME_TIMEOUT = (5, 75)
+    # Resuming waits on `claude respawn`, which the service gives up on after 60s,
+    # then up to 10s more for the session to show a live process.
+    RESUME_TIMEOUT = (5, 90)
     # Checking runs `claude --version` and a release lookup capped at 10s;
     # updating waits on `claude update`, which the service gives up on after 150s.
     VERSION_TIMEOUT = (5, 30)

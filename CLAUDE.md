@@ -80,7 +80,10 @@ Key structural facts that span files:
   "⏸️ Sessions Retired (N)" button (`claude.retired`, shown only when N ≥ 1) on a screen of
   their own, where each gets a Resume button instead of Close (`claude stop` fails on
   them): `POST /sessions/<id>/resume` runs `claude respawn`, and the service refuses it for
-  a session with a live process, which it would restart mid-turn. The bot re-reads the
+  a session with a live process, which it would restart mid-turn. `respawn` exits 0 even
+  when the new process dies at once, so the service then waits up to ~10s for the session
+  to show a live process and answers 502 if it is still Retired; a second Resume of the
+  same session during that wait gets 409 instead of respawning it again. The bot re-reads the
   sessions before resuming, so a stale Retired-screen button just refreshes the main
   screen. A resumed session is live again, so Close works on it.
   **Check update** (`GET /version`) reports the Installed version and the newest release on
