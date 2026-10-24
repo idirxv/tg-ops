@@ -1,12 +1,13 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from bot.claude_handlers import (
+    cmd_claude,
     on_claude_callback,
     render_retired,
     render_sessions,
     render_version,
 )
-from bot.claude_host import ClaudeHostError, ClaudeHostTimeout
+from bot.claude_host import ClaudeHostError, ClaudeHostStopped, ClaudeHostTimeout
 from bot.claude_version import VersionCheck
 from bot.sessions import Activity, Session
 
@@ -288,6 +289,35 @@ async def test_host_error_reported_with_recovery_buttons(config):
     assert "Claude is not logged in" in call.args[0]
     refresh = call.kwargs["reply_markup"].inline_keyboard[0][0]
     assert refresh.callback_data == "claude.list|"
+
+
+async def test_button_while_host_stopped_says_so_and_refresh_reloads(config):
+    host = _host()
+    host.list_sessions.side_effect = ClaudeHostStopped()
+    update, q = _update("claude.list|")
+    await on_claude_callback(update, _ctx(config, host))
+    call = q.edit_message_text.await_args
+    assert "Claude Host is stopped — start its stack from /docker" in call.args[0]
+    refresh = call.kwargs["reply_markup"].inline_keyboard[0][0]
+    assert refresh.text == "🔄 Refresh"
+
+    # The Claude Host is back: Refresh reloads the panel.
+    host.list_sessions.side_effect = None
+    update, q = _update(refresh.callback_data)
+    await on_claude_callback(update, _ctx(config, host))
+    assert "greeting" in q.edit_message_text.await_args.args[0]
+
+
+async def test_command_while_host_stopped_says_so_with_refresh(config):
+    host = _host()
+    host.list_sessions.side_effect = ClaudeHostStopped()
+    update = MagicMock()
+    update.effective_message.reply_text = AsyncMock()
+    await cmd_claude(update, _ctx(config, host))
+    call = update.effective_message.reply_text.await_args
+    assert "Claude Host is stopped — start its stack from /docker" in call.args[0]
+    refresh = call.kwargs["reply_markup"].inline_keyboard[0][0]
+    assert (refresh.text, refresh.callback_data) == ("🔄 Refresh", "claude.list|")
 
 
 async def test_open_timeout_warns_before_retry(config):

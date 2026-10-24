@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 import requests
+from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +23,14 @@ class ClaudeHostTimeout(ClaudeHostError):
 
     Unlike a connection failure, the operation may still be running.
     """
+
+
+class ClaudeHostStopped(ClaudeHostError):
+    """No connection to the control service could be made (refused, or its name
+    doesn't resolve): its container is most likely stopped."""
+
+    def __init__(self) -> None:
+        super().__init__("Claude Host is stopped — start its stack from /docker")
 
 
 class ClaudeHostClient:
@@ -103,6 +112,8 @@ class ClaudeHostClient:
             ) from exc
         except requests.RequestException as exc:
             log.error("%s %s failed: %s", method, url, exc)
+            if _could_not_connect(exc):
+                raise ClaudeHostStopped() from exc
             raise ClaudeHostError(
                 f"Claude Host unreachable ({exc.__class__.__name__})"
             ) from exc
@@ -114,6 +125,15 @@ class ClaudeHostClient:
             )
             raise ClaudeHostError(_error_message(resp))
         return resp
+
+
+def _could_not_connect(exc: requests.RequestException) -> bool:
+    """True for a refused connection or an unresolved name, not for a connect
+    timeout or a connection dropped mid-request, where the host was up."""
+    cause = exc.args[0] if exc.args else None
+    return isinstance(cause, MaxRetryError) and isinstance(
+        cause.reason, NewConnectionError
+    )
 
 
 def _error_message(resp: requests.Response) -> str:
