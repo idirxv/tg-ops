@@ -86,6 +86,12 @@ Key structural facts that span files:
   same session during that wait gets 409 instead of respawning it again. The bot re-reads the
   sessions before resuming, so a stale Retired-screen button just refreshes the main
   screen. A resumed session is live again, so Close works on it.
+  Each Retired row also has a 🗑 **Discard** button (`claude.discard` asks,
+  `claude.cdiscard` performs, Cancel goes to `claude.retired`): `POST /sessions/<id>/discard`
+  runs `claude rm`, deleting the conversation too. The service refuses it (409) for a
+  session with a live process or one mid-Resume, so a stale confirm can't delete a resumed
+  session. After Discard the panel stays on the Retired screen while any remain, else the
+  main screen.
   **Check update** (`GET /version`) reports the Installed version and the newest release on
   the host's channel (`latest: null` when that lookup fails); **Update** (`POST /update`)
   runs `claude update` and carries no version in its callback data, so it can only ever go

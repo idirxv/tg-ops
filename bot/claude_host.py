@@ -38,6 +38,8 @@ class ClaudeHostClient:
     # service itself gives up on after 60s.
     LIST_TIMEOUT = (5, 15)
     OPEN_TIMEOUT = (5, 75)
+    # Closing and discarding wait on `claude stop` / `claude rm`, which the
+    # service gives up on after 30s.
     CLOSE_TIMEOUT = (5, 45)
     # Resuming waits on `claude respawn`, which the service gives up on after 60s,
     # then up to 10s more for the session to show a live process.
@@ -80,6 +82,14 @@ class ClaudeHostClient:
             "POST",
             f"/sessions/{quote(session_id, safe='')}/resume",
             self.RESUME_TIMEOUT,
+        )
+
+    def discard_session(self, session_id: str) -> None:
+        """Delete a Retired session for good, conversation included."""
+        self._request(
+            "POST",
+            f"/sessions/{quote(session_id, safe='')}/discard",
+            self.CLOSE_TIMEOUT,
         )
 
     def version(self) -> Any:

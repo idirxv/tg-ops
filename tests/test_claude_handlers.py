@@ -22,6 +22,13 @@ RETIRED_PAYLOAD = {
     "logged_in": True,
     "sessions": [{"id": "dbd65fb7", "name": "greeting", "folder": "petuka-db"}],
 }
+TWO_RETIRED_PAYLOAD = {
+    "logged_in": True,
+    "sessions": [
+        {"id": "dbd65fb7", "name": "greeting", "folder": "petuka-db"},
+        {"id": "ab12cd34", "name": "old", "folder": "alpha"},
+    ],
+}
 
 
 def _ctx(config, host):
@@ -250,6 +257,93 @@ async def test_resume_is_audit_logged(config, caplog):
         await on_claude_callback(update, _ctx(config, _host(RETIRED_PAYLOAD)))
     assert "resume session dbd65fb7 requested by user_id=42 (@alice)" in caplog.text
     assert "Resumed session dbd65fb7" in caplog.text
+
+
+def test_render_retired_offers_discard_and_shows_notice():
+    text = render_retired([Session("b", "gone", "", Activity.RETIRED)], "🗑 done")
+    assert text.startswith("🗑 done")
+    assert "🗑 to discard" in text
+
+
+async def test_discard_asks_for_confirmation_warning_the_conversation_is_lost(config):
+    host = _host(RETIRED_PAYLOAD)
+    update, q = _update("claude.discard|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.discard_session.assert_not_called()
+    call = q.edit_message_text.await_args
+    assert "<b>greeting</b>" in call.args[0]
+    assert "conversation is deleted for good" in call.args[0]
+    data = [b.callback_data for b in call.kwargs["reply_markup"].inline_keyboard[0]]
+    assert data == ["claude.cdiscard|dbd65fb7", "claude.retired|"]
+
+
+async def test_discard_of_running_session_points_to_close(config):
+    host = _host()
+    update, q = _update("claude.discard|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    host.discard_session.assert_not_called()
+    call = q.edit_message_text.await_args
+    assert "close it instead" in call.args[0]
+    assert call.kwargs["reply_markup"].inline_keyboard[0][0].callback_data == (
+        "claude.close|dbd65fb7"
+    )
+
+
+async def test_discard_of_vanished_session_refreshes_retired_screen(config):
+    host = _host(TWO_RETIRED_PAYLOAD)
+    update, q = _update("claude.discard|00000000")
+    await on_claude_callback(update, _ctx(config, host))
+    host.discard_session.assert_not_called()
+    call = q.edit_message_text.await_args
+    assert "no longer exists" in call.args[0]
+    assert "<b>greeting</b>" in call.args[0]
+
+
+async def test_confirmed_discard_stays_on_retired_screen_while_some_remain(config):
+    # ab12cd34 is gone once Discarded; dbd65fb7 is still Retired.
+    host = _host(RETIRED_PAYLOAD)
+    update, q = _update("claude.cdiscard|ab12cd34")
+    await on_claude_callback(update, _ctx(config, host))
+    host.discard_session.assert_called_once_with("ab12cd34")
+    assert q.edit_message_text.await_args_list[0].args[0].startswith("⏳")
+    assert q.edit_message_text.await_args_list[0].kwargs["reply_markup"] is None
+    call = q.edit_message_text.await_args
+    assert call.args[0].startswith("🗑 Session discarded.")
+    assert "<b>Retired sessions</b>" in call.args[0]
+    data = [row[0].callback_data for row in call.kwargs["reply_markup"].inline_keyboard]
+    assert data == ["claude.resume|dbd65fb7", "claude.list|"]
+
+
+async def test_confirmed_discard_of_last_retired_returns_to_main_screen(config):
+    host = _host(SESSIONS_PAYLOAD)
+    update, q = _update("claude.cdiscard|ab12cd34")
+    await on_claude_callback(update, _ctx(config, host))
+    host.discard_session.assert_called_once_with("ab12cd34")
+    call = q.edit_message_text.await_args
+    assert call.args[0].startswith("🗑 Session discarded.")
+    assert "<b>Claude sessions</b>" in call.args[0]
+    kb = call.kwargs["reply_markup"]
+    assert kb.inline_keyboard[0][0].callback_data == "claude.close|dbd65fb7"
+
+
+async def test_discard_reports_host_refusal(config):
+    host = _host(RETIRED_PAYLOAD)
+    host.discard_session.side_effect = ClaudeHostError(
+        "session is running: close it instead"
+    )
+    update, q = _update("claude.cdiscard|dbd65fb7")
+    await on_claude_callback(update, _ctx(config, host))
+    assert "close it instead" in q.edit_message_text.await_args.args[0]
+
+
+async def test_discard_is_audit_logged(config, caplog):
+    update, q = _update("claude.cdiscard|dbd65fb7")
+    q.from_user.id = 42
+    q.from_user.username = "alice"
+    with caplog.at_level("INFO", logger="bot.claude_handlers"):
+        await on_claude_callback(update, _ctx(config, _host()))
+    assert "discard session dbd65fb7 requested by user_id=42 (@alice)" in caplog.text
+    assert "Discarded session dbd65fb7" in caplog.text
 
 
 async def test_new_shows_folder_picker(config):

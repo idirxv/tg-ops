@@ -3,6 +3,7 @@ import pytest
 from bot.claude_keyboards import (
     ClaudeAction,
     confirm_close_keyboard,
+    confirm_discard_keyboard,
     decode,
     encode,
     folder_keyboard,
@@ -26,6 +27,8 @@ from bot.sessions import Activity, Session
         (ClaudeAction.CLOSE, "dbd65fb7"),
         (ClaudeAction.CONFIRM_CLOSE, "dbd65fb7"),
         (ClaudeAction.RESUME, "dbd65fb7"),
+        (ClaudeAction.DISCARD, "dbd65fb7"),
+        (ClaudeAction.CONFIRM_DISCARD, "dbd65fb7"),
         (ClaudeAction.RETIRED, ""),
         (ClaudeAction.CHECK_UPDATE, ""),
         (ClaudeAction.UPDATE, ""),
@@ -50,6 +53,10 @@ def test_roundtrip(action, arg):
         "claude.cclose|dbd65fb7;ls",
         "claude.resume|",
         "claude.resume|--all",
+        "claude.discard|",
+        "claude.discard|--all",
+        "claude.cdiscard|DBD65FB7",
+        "claude.cdiscard|dbd65fb7;ls",
         "claude.update|2.1.306",  # always installs the newest, never a pick
         "claude.check|x",
         "claude.retired|dbd65fb7",
@@ -99,7 +106,7 @@ def test_sessions_keyboard_hides_retired_button_when_none_are():
     assert "claude.retired|" not in data
 
 
-def test_retired_keyboard_offers_resume_per_session_and_back():
+def test_retired_keyboard_offers_resume_and_discard_per_session_and_back():
     kb = retired_keyboard(
         [
             Session("dbd65fb7", "one", "", Activity.RETIRED),
@@ -108,11 +115,12 @@ def test_retired_keyboard_offers_resume_per_session_and_back():
     )
     data = [[b.callback_data for b in row] for row in kb.inline_keyboard]
     assert data == [
-        ["claude.resume|dbd65fb7"],
-        ["claude.resume|ab12cd34"],
+        ["claude.resume|dbd65fb7", "claude.discard|dbd65fb7"],
+        ["claude.resume|ab12cd34", "claude.discard|ab12cd34"],
         ["claude.list|"],
     ]
     assert kb.inline_keyboard[0][0].text == "▶️ one"
+    assert kb.inline_keyboard[0][1].text == "🗑"
     assert kb.inline_keyboard[-1][0].text == "⬅️ Back"
 
 
@@ -132,6 +140,13 @@ def test_confirm_close_keyboard():
     kb = confirm_close_keyboard("dbd65fb7")
     assert kb.inline_keyboard[0][0].callback_data == "claude.cclose|dbd65fb7"
     assert kb.inline_keyboard[0][1].callback_data == "claude.list|"
+
+
+def test_confirm_discard_keyboard_cancels_back_to_the_retired_screen():
+    kb = confirm_discard_keyboard("dbd65fb7")
+    data = [b.callback_data for b in kb.inline_keyboard[0]]
+    assert data == ["claude.cdiscard|dbd65fb7", "claude.retired|"]
+    assert all(len(d.encode()) <= 64 for d in data)
 
 
 def test_version_keyboard_offers_update_only_when_one_is_available():

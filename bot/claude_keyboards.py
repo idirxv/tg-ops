@@ -35,10 +35,23 @@ class ClaudeAction(StrEnum):
     CONFIRM_CLOSE = "claude.cclose"  # actually closes
     RETIRED = "claude.retired"  # lists the Retired sessions
     RESUME = "claude.resume"  # restarts a Retired session's process
+    DISCARD = "claude.discard"  # asks for confirmation
+    CONFIRM_DISCARD = "claude.cdiscard"  # deletes a Retired session for good
     CHECK_UPDATE = "claude.check"  # shows the Installed and latest versions
     # Updates to the newest release; it carries no version to pick.
     UPDATE = "claude.update"
     EXIT = "claude.exit"
+
+
+_SESSION_ACTIONS = frozenset(
+    {
+        ClaudeAction.CLOSE,
+        ClaudeAction.CONFIRM_CLOSE,
+        ClaudeAction.RESUME,
+        ClaudeAction.DISCARD,
+        ClaudeAction.CONFIRM_DISCARD,
+    }
+)
 
 
 def encode(action: ClaudeAction, arg: str = "") -> str:
@@ -53,7 +66,7 @@ def decode(data: str | None) -> tuple[ClaudeAction, str]:
         action = ClaudeAction(raw_action)
     except ValueError as exc:
         raise CallbackError(f"unknown action: {raw_action!r}") from exc
-    if action in (ClaudeAction.CLOSE, ClaudeAction.CONFIRM_CLOSE, ClaudeAction.RESUME):
+    if action in _SESSION_ACTIONS:
         if not SESSION_ID.fullmatch(arg):
             raise CallbackError(f"invalid session id: {arg!r}")
     elif action is not ClaudeAction.OPEN and arg:
@@ -90,7 +103,10 @@ def sessions_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
 def retired_keyboard(sessions: Sequence[Session]) -> InlineKeyboardMarkup:
     # Resume, not Close: a retired session has no process for `claude stop`.
     rows = [
-        [_button(f"▶️ {s.name}", ClaudeAction.RESUME, s.id)]
+        [
+            _button(f"▶️ {s.name}", ClaudeAction.RESUME, s.id),
+            _button("🗑", ClaudeAction.DISCARD, s.id),
+        ]
         for s in sessions
         if s.retired
     ]
@@ -124,6 +140,17 @@ def confirm_close_keyboard(session_id: str) -> InlineKeyboardMarkup:
             [
                 _button("✅ Yes, close", ClaudeAction.CONFIRM_CLOSE, session_id),
                 _button("❌ Cancel", ClaudeAction.LIST),
+            ]
+        ]
+    )
+
+
+def confirm_discard_keyboard(session_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                _button("🗑 Yes, discard", ClaudeAction.CONFIRM_DISCARD, session_id),
+                _button("❌ Cancel", ClaudeAction.RETIRED),
             ]
         ]
     )

@@ -68,6 +68,13 @@ def test_resume_session_posts_to_resume(client):
 
 
 @responses.activate
+def test_discard_session_posts_to_discard(client):
+    responses.post(f"{BASE}/sessions/dbd65fb7/discard", json={"ok": True})
+    client.discard_session("dbd65fb7")
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_version_returns_payload(client):
     body = {"installed": "2.1.305", "latest": "2.1.306", "channel": "latest"}
     responses.get(f"{BASE}/version", json=body)
