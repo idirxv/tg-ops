@@ -15,7 +15,7 @@ dev = [
     "responses==0.26.2",
     "ruff==0.15.4",
     "mypy==1.20.0",
-    "types-requests==2.33.0.20260712",
+    "types-requests==2.33.0.20261030",
 ]
 
 [tool.pytest.ini_options]
